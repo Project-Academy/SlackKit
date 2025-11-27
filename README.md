@@ -11,11 +11,15 @@ https://github.com/Project-Academy/SlackKit
 #### Authorship
 You can choose to set a 'global' default author of messages.
 ```swift
+<<<<<<< HEAD
 Slack.defaultAuthor = Bot(
     username: "MyFaveBot",
     icon_emoji: ":nerd_face:",
     token: "xoxb-my-bot-token"
 )
+=======
+Slack.defaultAuthor = Bot(username: "MyFaveBot", icon_emoji: ":nerd_face:", token: "xoxb-my-bot-token")
+>>>>>>> refs/remotes/origin/main
 ```
 This allows you 'set and forget' if all your app's messages will have the same author.
 You can alternatively customise the author of any message when sending (see Sending Messages below).
@@ -35,6 +39,7 @@ let message2 = Message("Hello, world", blocks: blocks)
 ```
 
 #### Sending Messages
+<<<<<<< HEAD
 A message can be sent with a Channel ID string:
 ```swift
 let channel = "C12345678ABCD"
@@ -55,6 +60,20 @@ As seen above, sent messages return a (discardable) `MessageResponse` object,
 containing the message, timestamp, and channel. 
 This is helpful for updating, deleting, or replying to messages.
 ```swift
+=======
+```swift
+// A message can be sent with a Channel ID string:
+let channel = "C12345678ABCD"
+try await message.send(to: channel)
+
+// You can customise authorship on a per-message basis:
+let myBot = Bot(username: "MyCustomBot", icon_emoji: ":unicorn_face:", token: "xoxb-my-bot-token")
+let response = try await message.send(from: myBot, to: channel)
+let response2: MessageResponse = try await message.send(to: channel)
+
+// As seen above, sent messages return a (discardable) `MessageResponse` object, containing the message, timestamp, and channel. 
+// This is helpful for updating, deleting, or replying to messages.
+>>>>>>> refs/remotes/origin/main
 print(response.channel) // "C12345678ABCD"
 print(response.ts) // 1764216383.416729
 ```
