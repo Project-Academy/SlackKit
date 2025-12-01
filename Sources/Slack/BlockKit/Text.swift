@@ -9,7 +9,7 @@ import Foundation
 
 extension Block {
     
-    public struct Text: Codable {
+    public struct Text: Codable, Equatable {
         
         //--------------------------------------
         // MARK: - VARIABLES -
@@ -88,3 +88,6 @@ extension Block {
     }
 }
 
+extension Block.Text: CustomStringConvertible {
+    public var description: String { text }
+}

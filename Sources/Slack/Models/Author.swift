@@ -89,7 +89,7 @@ public struct Bot: Author {
     
 }
 
-public struct User: Author {
+public struct UserAuthor: Author {
     
     //--------------------------------------
     // MARK: - VARIABLES -
@@ -106,6 +106,5 @@ public struct User: Author {
     public init(token: String) {
         self.token = token
     }
-
     
 }

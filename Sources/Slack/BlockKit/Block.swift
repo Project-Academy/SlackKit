@@ -7,7 +7,7 @@
 
 import Foundation
 
-public struct Block: Codable {
+public struct Block: Codable, Equatable {
     
     //--------------------------------------
     // MARK: - VARIABLES -
@@ -123,7 +123,7 @@ public struct Block: Codable {
     //--------------------------------------
     // MARK: - HELPERS -
     //--------------------------------------
-    private enum BlockType: String {
+    internal enum BlockType: String {
         case divider
         case header
         case section

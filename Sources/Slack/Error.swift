@@ -9,4 +9,7 @@
 
 public enum SlackError: Error {
     case Chat(_ error: Any?)
+    case Conversations(_ error: Any?)
+    case Reactions(_ error: Any?)
+    case Users(_ error: Any?)
 }

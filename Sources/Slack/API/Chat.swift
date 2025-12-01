@@ -15,7 +15,7 @@ private enum Chat: String, Endpoints {
     case update
     case delete
     
-    var path: URL { Chat.base.appending(component: "chat.\(rawValue)") }
+    var path: URL { Self.base.appending(component: "chat.\(rawValue)") }
 }
 
 extension Message {
@@ -53,18 +53,15 @@ extension Message {
         return response
     }
     
-    @discardableResult
-    public static func delete(messageAt ts: String, in channel: String) async throws -> MessageResponse {
+    public static func delete(messageAt ts: String, in channel: Channel, authority: Author? = nil) async throws {
         
         let resp = try await Chat.delete.POST
-            .params(["ts": ts, "channel": channel])
+            .params(["ts": ts, "channel": channel.id])
+            .from(authority)
             .response()
         
-        guard let chatResp = try? resp.asType(ChatResponse.self),
-              let response = MessageResponse(chatResp)
+        guard let chatResp = try? resp.asType(ChatResponse.self)
         else { throw SlackError.Chat(resp.JSON)  }
-        return response
-        
     }
 }
 internal struct ChatResponse: Decodable {
@@ -74,31 +71,18 @@ internal struct ChatResponse: Decodable {
     let ts: String
     
     let text: String?
-    let message: MessageObject?
-    
-    struct MessageObject: Decodable {
-        let app_id: String
-        let bot_id: String?
-        let username: String?
-        
-        let type: String?
-        let subtype: String?
-        
-        let text: String?
-        let blocks: [Block]?
-        let edited: [String: String]?
-    }
+    let message: Message?
 }
 
 public struct MessageResponse: Decodable {
     public let ts: String
-    public let channel: String
+    public let channel: Channel
     public let message: Message
     
     init?(_ resp: ChatResponse, message: Message? = nil) {
         
         ts = resp.ts
-        channel = resp.channel
+        channel = Channel(resp.channel)
         guard message == nil
         else { self.message = message!; return }
         
@@ -113,11 +97,18 @@ public struct MessageResponse: Decodable {
         self.message = message_
     }
     
+    internal init?(_ msg: Message, channel: Channel) {
+        guard let ts = msg.ts else { return nil }
+        self.ts = ts
+        self.channel = channel
+        self.message = msg
+    }
+    
     @discardableResult
     public func update(to newMessage: Message, author: Author? = nil) async throws -> MessageResponse {
         
         let resp = try await Chat.update.POST
-            .messageAt(ts, in: channel)
+            .messageAt(ts, in: channel.id)
             .message(newMessage)
             .response()
         
@@ -131,7 +122,7 @@ public struct MessageResponse: Decodable {
     public func delete(as author: Author? = nil) async throws -> MessageResponse {
         
         let resp = try await Chat.delete.POST
-            .params(["ts": ts, "channel": channel])
+            .params(["ts": ts, "channel": channel.id])
             .from(author)
             .response()
         
