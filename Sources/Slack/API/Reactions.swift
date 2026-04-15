@@ -32,12 +32,12 @@ extension MessageResponse {
             .response()
         
         guard let response = try? resp.asType(Response.self)
-        else { throw SlackError.Reactions(resp.JSON) }
+        else { throw SlackError.Reactions(resp.json) }
         
         guard let error = response.error,
               error != "already_reacted"
         else { return }
-        throw SlackError.Reactions(resp.JSON)
+        throw SlackError.Reactions(resp.json)
         
         struct Response: Decodable {
             let ok: Bool
@@ -57,12 +57,12 @@ extension MessageResponse {
             .response()
         
         guard let response = try? resp.asType(Response.self)
-        else { throw SlackError.Reactions(resp.JSON) }
+        else { throw SlackError.Reactions(resp.json) }
         
         guard let error = response.error,
               error != "no_reaction"
         else { return }
-        throw SlackError.Reactions(resp.JSON)
+        throw SlackError.Reactions(resp.json)
         
         struct Response: Decodable {
             let ok: Bool
@@ -83,7 +83,7 @@ extension MessageResponse {
         
         guard let response = try? resp.asType(Response.self),
               let reactions = response.message?.reactions
-        else { throw SlackError.Reactions(resp.JSON) }
+        else { throw SlackError.Reactions(resp.json) }
         return reactions
         
         struct Response: Decodable {

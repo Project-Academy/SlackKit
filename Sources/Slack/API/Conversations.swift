@@ -37,7 +37,7 @@ extension Channel {
         
         guard let response = try? resp.asType(Response.self),
               let channels = response.channels
-        else { throw SlackError.Conversations(resp.JSON)  }
+        else { throw SlackError.Conversations(resp.json)  }
         return channels
         
         struct Response: Decodable {
@@ -56,7 +56,7 @@ extension Channel {
         
         guard let response = try? resp.asType(Response.self),
               let messages = response.messages
-        else { throw SlackError.Conversations(resp.JSON)  }
+        else { throw SlackError.Conversations(resp.json)  }
         return messages.compactMap { MessageResponse($0, channel: self) }
         
         struct Response: Decodable {
@@ -76,10 +76,10 @@ extension Channel {
             ])
             .response()
         
-        print(#function, "JSON", resp.JSON)
+        print(#function, "JSON", resp.json)
         guard let response = try? resp.asType(Response.self),
               let messages = response.messages
-        else { throw SlackError.Conversations(resp.JSON)  }
+        else { throw SlackError.Conversations(resp.json)  }
         return messages.compactMap { MessageResponse($0, channel: self) }
         struct Response: Decodable {
             let ok: Bool
@@ -102,7 +102,7 @@ extension Channel {
         
         guard let response = try? resp.asType(Response.self),
               let channel = response.channel
-        else { throw SlackError.Conversations(resp.JSON)  }
+        else { throw SlackError.Conversations(resp.json)  }
         return channel
     }
     
@@ -115,7 +115,7 @@ extension Channel {
         
         guard let response = try? resp.asType(Response.self),
               let channel = response.channel
-        else { throw SlackError.Conversations(resp.JSON)  }
+        else { throw SlackError.Conversations(resp.json)  }
         if let warning = response.warning {
             print("Join warning: \(warning)")
         }
@@ -139,7 +139,7 @@ extension Channel {
             .response()
         
         guard let response = try? resp.asType(Response.self)
-        else { throw SlackError.Conversations(resp.JSON)  }
+        else { throw SlackError.Conversations(resp.json)  }
         if let warning = response.warning {
             print("Invite warning: \(warning)")
         }

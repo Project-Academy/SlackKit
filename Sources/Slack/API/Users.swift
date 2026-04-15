@@ -27,7 +27,7 @@ extension Member {
         
         guard let response = try? resp.asType(Response.self),
               let members = response.members
-        else { throw SlackError.Users(resp.JSON) }
+        else { throw SlackError.Users(resp.json) }
         return members
         
         struct Response: Decodable {
@@ -47,7 +47,7 @@ extension Member {
         
         guard let response = try? resp.asType(Response.self),
               let profile = response.profile
-        else { throw SlackError.Users(resp.JSON) }
+        else { throw SlackError.Users(resp.json) }
         return profile
         
         struct Response: Decodable {
@@ -72,7 +72,7 @@ extension Member {
         
         guard let response = try? resp.asType(Response.self),
               let channel = response.channel
-        else { throw SlackError.Conversations(resp.JSON)  }
+        else { throw SlackError.Conversations(resp.json)  }
         return channel
         
         struct Response: Decodable {

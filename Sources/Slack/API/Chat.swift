@@ -9,13 +9,13 @@ import Foundation
 
 private enum Chat: String, Endpoints {
     typealias API = Slack
-    static let base = API.baseURL
+    static let base = API.baseURL.appending(component: "chat.")
     
     case postMessage
     case update
     case delete
     
-    var path: URL { Self.base.appending(component: "chat.\(rawValue)") }
+    var path: URL { Self.base.appending(path: rawValue) }
 }
 
 extension Message {
@@ -35,7 +35,7 @@ extension Message {
         
         guard let chatResp = try? resp.asType(ChatResponse.self),
               let response = MessageResponse(chatResp)
-        else { throw SlackError.Chat(resp.JSON["error"] as? String)  }
+        else { throw SlackError.Chat(resp.json?["error"] as? String)  }
         return response
     }
     
@@ -49,7 +49,7 @@ extension Message {
         
         guard let chatResp = try? resp.asType(ChatResponse.self),
               let response = MessageResponse(chatResp)
-        else { throw SlackError.Chat(resp.JSON)  }
+        else { throw SlackError.Chat(resp.json)  }
         return response
     }
     
@@ -61,7 +61,7 @@ extension Message {
             .response()
         
         guard let chatResp = try? resp.asType(ChatResponse.self)
-        else { throw SlackError.Chat(resp.JSON)  }
+        else { throw SlackError.Chat(resp.json)  }
     }
 }
 internal struct ChatResponse: Decodable {
@@ -114,7 +114,7 @@ public struct MessageResponse: Decodable {
         
         guard let chatResp = try? resp.asType(ChatResponse.self),
               let response = MessageResponse(chatResp)
-        else { throw SlackError.Chat(resp.JSON)  }
+        else { throw SlackError.Chat(resp.json)  }
         return response
     }
     
@@ -128,7 +128,7 @@ public struct MessageResponse: Decodable {
         
         guard let chatResp = try? resp.asType(ChatResponse.self),
               let response = MessageResponse(chatResp, message: message)
-        else { throw SlackError.Chat(resp.JSON)  }
+        else { throw SlackError.Chat(resp.json)  }
         return response
         
     }
