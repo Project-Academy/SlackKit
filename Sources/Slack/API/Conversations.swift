@@ -76,7 +76,6 @@ extension Channel {
             ])
             .response()
         
-        print(#function, "JSON", resp.json)
         guard let response = try? resp.asType(Response.self),
               let messages = response.messages
         else { throw SlackError.Conversations(resp.json)  }
