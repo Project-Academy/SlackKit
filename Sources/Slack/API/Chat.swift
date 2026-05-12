@@ -9,13 +9,13 @@ import Foundation
 
 private enum Chat: String, Endpoints {
     typealias API = Slack
-    static let base = API.baseURL.appending(component: "chat.")
+    static let base = API.baseURL
     
     case postMessage
     case update
     case delete
     
-    var path: URL { Self.base.appending(path: rawValue) }
+    var path: URL { Self.base.appending(component: "chat.\(rawValue)") }
 }
 
 extension Message {
@@ -60,7 +60,7 @@ extension Message {
             .from(authority)
             .response()
         
-        guard let chatResp = try? resp.asType(ChatResponse.self)
+        guard (try? resp.asType(ChatResponse.self)) != nil
         else { throw SlackError.Chat(resp.json)  }
     }
 }

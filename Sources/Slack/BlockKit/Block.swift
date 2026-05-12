@@ -53,7 +53,16 @@ public struct Block: Codable, Equatable {
      [Click here for an example.](https://api.slack.com/tools/block-kit-builder?blocks=%5B%0A%09%7B%0A%09%09%22type%22%3A%20%22section%22%2C%0A%09%09%22text%22%3A%20%7B%0A%09%09%09%22text%22%3A%20%22A%20message%20*with%20some%20bold%20text*%20and%20_some%20italicized%20text_.%22%2C%0A%09%09%09%22type%22%3A%20%22mrkdwn%22%0A%09%09%7D%2C%0A%09%09%22fields%22%3A%20%5B%0A%09%09%09%7B%0A%09%09%09%09%22type%22%3A%20%22mrkdwn%22%2C%0A%09%09%09%09%22text%22%3A%20%22*Priority*%22%0A%09%09%09%7D%2C%0A%09%09%09%7B%0A%09%09%09%09%22type%22%3A%20%22mrkdwn%22%2C%0A%09%09%09%09%22text%22%3A%20%22*Type*%22%0A%09%09%09%7D%2C%0A%09%09%09%7B%0A%09%09%09%09%22type%22%3A%20%22plain_text%22%2C%0A%09%09%09%09%22text%22%3A%20%22High%22%0A%09%09%09%7D%2C%0A%09%09%09%7B%0A%09%09%09%09%22type%22%3A%20%22plain_text%22%2C%0A%09%09%09%09%22text%22%3A%20%22String%22%0A%09%09%09%7D%0A%09%09%5D%0A%09%7D%0A%5D)
      */
     public var fields: [Text]?
-    
+
+    /**
+     Used only for Context Blocks.
+
+     A mixed-element array. The current builder accepts mrkdwn strings;
+     image element support can be added later if needed.
+     - important: Maximum number of items is 10.
+     */
+    public var elements: [Text]?
+
     //--------------------------------------
     // MARK: - BLOCK BUILDERS -
     //--------------------------------------
@@ -107,19 +116,38 @@ public struct Block: Codable, Equatable {
         let text = Text(text, verbatim: verbatim)
         return .init(type: BlockType.section.rawValue, text: text)
     }
-    
+
+    /**
+     Displays one or more mrkdwn elements rendered as a context strip —
+     smaller font, secondary colour. Useful for footers / hints that
+     shouldn't compete with the main message body.
+
+     ## Available in Surfaces
+     - Modals
+     - Messages
+     - Home tabs
+
+     - note: Maximum number of elements is 10.
+     */
+    public static func context(_ items: [String]) -> Block {
+        let elements = items.map { Text($0) }
+        return .init(type: BlockType.context.rawValue, elements: elements)
+    }
+
     //--------------------------------------
     // MARK: - JSON -
     //--------------------------------------
     public var json: [String : Sendable] {
         var dict: [String: Sendable] = ["type": type]
-        
+
         if let text { dict["text"] = text.json }
-        
+        if let fields { dict["fields"] = fields.map(\.json) }
+        if let elements { dict["elements"] = elements.map(\.json) }
+
         if let block_id { dict["block_id"] = block_id }
         return dict
     }
-    
+
     //--------------------------------------
     // MARK: - HELPERS -
     //--------------------------------------
@@ -127,5 +155,6 @@ public struct Block: Codable, Equatable {
         case divider
         case header
         case section
+        case context
     }
 }

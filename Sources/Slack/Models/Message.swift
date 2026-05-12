@@ -7,7 +7,7 @@
 
 import Foundation
 
-public struct Message: Codable, Equatable {
+public struct Message: Codable, Equatable, @unchecked Sendable {
     
     //--------------------------------------
     // MARK: - VARIABLES -
@@ -37,12 +37,13 @@ public struct Message: Codable, Equatable {
     //--------------------------------------
     // MARK: - INITIALISERS -
     //--------------------------------------
-    public init(_ text: String, blocks: [Block]? = nil, thread: String? = nil, mrkdwn: Bool? = nil) {
+    public init(_ text: String, blocks: [Block]? = nil, thread: String? = nil, mrkdwn: Bool? = nil, metadata: Metadata? = nil) {
         self.text = text
         self.blocks = blocks
         self.thread_ts = thread
         self.mrkdwn = mrkdwn
-        
+        self.metadata = metadata
+
         self.app_id = nil
         self.bot_id = nil
         self.team = nil

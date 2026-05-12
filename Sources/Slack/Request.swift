@@ -43,7 +43,7 @@ public struct Request: APIRequest {
     // MARK: - MODIFIERS -
     //--------------------------------------
     public func message(_ msg: Message) -> Self {
-        var request = self
+        let request = self
             .params(msg.json)
         return request
     }
@@ -73,7 +73,7 @@ public struct Request: APIRequest {
         return request
     }
     public func messageAt(_ ts: String, in channel: String) -> Self {
-        var request = self
+        let request = self
             .params(["ts": ts, "channel": channel])
         return request
     }

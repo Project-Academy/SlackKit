@@ -172,15 +172,15 @@ extension Channel {
      
      */
     public func kick(_ user: Member, authority: Author? = nil) async throws {
-        
-        let resp = try await Conversations.kick.POST
+
+        _ = try await Conversations.kick.POST
             .params([
                 "channel": id,
                 "user": user.id,
             ])
             .from(authority)
             .response()
-        
+
     }
     
     struct Response: Decodable {
