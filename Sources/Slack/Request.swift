@@ -2,43 +2,20 @@
 //  Request.swift
 //  SlackKit
 //
-//  Created by Sarfraz Basha on 26/11/2025.
+//  Slack's request type is just `DefaultRequest<Slack>` from Tapioca,
+//  exposed under the familiar `Slack.Request` / `Request` spelling so
+//  no consumer of SlackKit has to change a callsite. The Slack-specific
+//  chainable modifiers (`.message(...)`, `.from(...)`, `.to(...)`,
+//  `.messageAt(...)`) live below as a constrained extension.
 //
 
 import Foundation
+import Tapioca
 
-public struct Request: APIRequest {
-    public typealias API = Slack
-    
-    //--------------------------------------
-    // MARK: - VARIABLES -
-    //--------------------------------------
-    public var urlRequest: URLRequest
-    public var httpMethod: HTTPMethod
-    public let baseURL: URL
-    
-    //--------------------------------------
-    // MARK: - INTERNAL STATE -
-    //--------------------------------------
-    public var headers: [String: String] = [:]
-    public var accepts: ContentType = .JSON
-    public var content: ContentType = .JSON
-    
-    public var params: [String: (any Sendable)] = [:]
-    public var paramTransformer: (@Sendable ([String: Any]) throws -> Data) = { params in
-        try JSONSerialization.data(withJSONObject: params, options: .prettyPrinted)
-    }
-    
-    //--------------------------------------
-    // MARK: - INITIALISERS -
-    //--------------------------------------
-    public init(url: URL, _ method: HTTPMethod? = nil) {
-        baseURL = url
-        urlRequest = URLRequest(url: url)
-        urlRequest.httpMethod = (method ?? .GET).rawValue
-        httpMethod = method ?? .GET
-    }
-    
+public typealias Request = DefaultRequest<Slack>
+
+extension DefaultRequest where API == Slack {
+
     //--------------------------------------
     // MARK: - MODIFIERS -
     //--------------------------------------
@@ -47,9 +24,10 @@ public struct Request: APIRequest {
             .params(msg.json)
         return request
     }
+
     public func from(_ author: Author?) -> Self {
         guard let author else { return self }
-        
+
         var request = self
         if let name = author.username {
             request.params["username"] = name
@@ -67,11 +45,13 @@ public struct Request: APIRequest {
         }
         return request
     }
+
     public func to(_ channel: String) -> Self {
         var request = self
         request.params["channel"] = channel
         return request
     }
+
     public func messageAt(_ ts: String, in channel: String) -> Self {
         let request = self
             .params(["ts": ts, "channel": channel])

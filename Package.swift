@@ -37,7 +37,7 @@ extension String {
     static let Tapioca = "https://github.com/Project-Academy/Tapioca.git"
 }
 extension Package.Dependency {
-    static var Tapioca: Package.Dependency { .package(url: .Tapioca, from: "1.0.0") }
+    static var Tapioca: Package.Dependency { .package(url: .Tapioca, from: "1.1.0") }
 }
 extension Target.Dependency {
     static var Tapioca: Target.Dependency { .product(name: "Tapioca", package: "Tapioca") }
