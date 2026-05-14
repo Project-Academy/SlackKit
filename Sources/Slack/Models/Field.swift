@@ -7,7 +7,7 @@
 
 import Foundation
 
-public struct Field: Codable {
+public struct Field: Codable, Sendable {
     
     public let label: String
     public let value: String?

@@ -7,7 +7,7 @@
 
 import Foundation
 
-public struct Member: Codable {
+public struct Member: Codable, Sendable {
     
     //--------------------------------------
     // MARK: - VARIABLES -
@@ -48,7 +48,7 @@ public struct Member: Codable {
     }
     
 }
-public struct Profile: Codable {
+public struct Profile: Codable, Sendable {
     
     public var title: String?
     public var pronouns: String?
@@ -88,7 +88,7 @@ public struct Profile: Codable {
     public var huddle_state: String?
     public var huddle_state_expiration_ts: Int?
     
-    public struct Status: Codable {
+    public struct Status: Codable, Sendable {
         public let display_url: String?
         public let emoji_name: String?
         public let unicode: String?
