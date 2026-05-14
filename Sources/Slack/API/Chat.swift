@@ -74,7 +74,7 @@ internal struct ChatResponse: Decodable {
     let message: Message?
 }
 
-public struct MessageResponse: Decodable {
+public struct MessageResponse: Decodable, Sendable {
     public let ts: String
     public let channel: Channel
     public let message: Message
