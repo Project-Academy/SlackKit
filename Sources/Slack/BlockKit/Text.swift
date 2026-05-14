@@ -9,7 +9,7 @@ import Foundation
 
 extension Block {
     
-    public struct Text: Codable, Equatable {
+    public struct Text: Codable, Equatable, Sendable {
         
         //--------------------------------------
         // MARK: - VARIABLES -
@@ -81,7 +81,7 @@ extension Block {
         //--------------------------------------
         // MARK: - TEXT TYPE ENUM -
         //--------------------------------------
-        public enum TextType: String, Codable {
+        public enum TextType: String, Codable, Sendable {
             case plainText = "plain_text"
             case markdown = "mrkdwn"
         }

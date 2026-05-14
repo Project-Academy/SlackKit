@@ -8,7 +8,7 @@
 import Foundation
 
 public struct Block: Codable, Equatable {
-    
+
     //--------------------------------------
     // MARK: - VARIABLES -
     //--------------------------------------
@@ -62,6 +62,47 @@ public struct Block: Codable, Equatable {
      - important: Maximum number of items is 10.
      */
     public var elements: [Text]?
+
+    /**
+     Rich-text content of a `rich_text` block — set only when
+     `type == "rich_text"`. See `RichTextElement` for the structural
+     model (sections / lists / quotes / preformatted) and
+     `RichTextInline` for the leaf-node kinds (text / link / emoji /
+     user / channel / broadcast / …).
+     */
+    public var richText: [RichTextElement]?
+
+    /**
+     Interactive elements inside an `actions` block — set only when
+     `type == "actions"`. Currently models `Button`; other element
+     kinds surface as `.unknown(type:)`.
+     */
+    public var actions: [ActionElement]?
+
+    //--------------------------------------
+    // MARK: - INIT -
+    //--------------------------------------
+    /// Memberwise init. Restored explicitly because the custom
+    /// `init(from:)` below suppresses synthesis. Used by the static
+    /// `.divider` / `.header(_:)` / `.section(_:)` / `.context(_:)`
+    /// builders to construct outgoing blocks.
+    public init(
+        type: String,
+        block_id: String? = nil,
+        text: Text? = nil,
+        fields: [Text]? = nil,
+        elements: [Text]? = nil,
+        richText: [RichTextElement]? = nil,
+        actions: [ActionElement]? = nil
+    ) {
+        self.type = type
+        self.block_id = block_id
+        self.text = text
+        self.fields = fields
+        self.elements = elements
+        self.richText = richText
+        self.actions = actions
+    }
 
     //--------------------------------------
     // MARK: - BLOCK BUILDERS -
@@ -146,6 +187,104 @@ public struct Block: Codable, Equatable {
 
         if let block_id { dict["block_id"] = block_id }
         return dict
+    }
+
+    //--------------------------------------
+    // MARK: - CODABLE -
+    //--------------------------------------
+    /**
+     Strict, type-dispatched decode. The shape of the `elements`
+     array depends on the block's `type`:
+
+     - `rich_text` → `[RichTextElement]` (lists, quotes, inline runs).
+       Modelled by `RichTextElement` / `RichTextInline`.
+     - `actions`   → `[ActionElement]` (buttons + other interactives).
+       Modelled by `ActionElement` / `Button`.
+     - all other types (section / header / context / …) → `[Text]`,
+       as documented.
+
+     Unknown `type` values still decode (we capture the raw type
+     string and leave the type-specific fields nil) so a future Slack
+     block kind never blows up the surrounding message.
+     */
+    public init(from decoder: Decoder) throws {
+        let c = try decoder.container(keyedBy: CodingKeys.self)
+        self.type     = try c.decode(String.self, forKey: .type)
+        self.block_id = try c.decodeIfPresent(String.self, forKey: .block_id)
+        self.text     = try c.decodeIfPresent(Text.self,   forKey: .text)
+        self.fields   = try c.decodeIfPresent([Text].self, forKey: .fields)
+
+        switch self.type {
+        case "rich_text":
+            self.richText = try c.decodeIfPresent([RichTextElement].self, forKey: .elements)
+            self.elements = nil
+            self.actions  = nil
+        case "actions":
+            self.actions  = try c.decodeIfPresent([ActionElement].self, forKey: .elements)
+            self.elements = nil
+            self.richText = nil
+        default:
+            self.elements = try c.decodeIfPresent([Text].self, forKey: .elements)
+            self.richText = nil
+            self.actions  = nil
+        }
+    }
+
+    public func encode(to encoder: Encoder) throws {
+        var c = encoder.container(keyedBy: CodingKeys.self)
+        try c.encode(type, forKey: .type)
+        try c.encodeIfPresent(block_id, forKey: .block_id)
+        try c.encodeIfPresent(text,     forKey: .text)
+        try c.encodeIfPresent(fields,   forKey: .fields)
+
+        switch type {
+        case "rich_text":
+            try c.encodeIfPresent(richText, forKey: .elements)
+        case "actions":
+            try c.encodeIfPresent(actions,  forKey: .elements)
+        default:
+            try c.encodeIfPresent(elements, forKey: .elements)
+        }
+    }
+
+    private enum CodingKeys: String, CodingKey {
+        case type, block_id, text, fields, elements
+    }
+
+    //--------------------------------------
+    // MARK: - PLAIN TEXT -
+    //--------------------------------------
+    /**
+     Best-effort flat-text rendering of this block. Section/header
+     blocks return their `text`/`fields`; rich-text blocks recurse
+     through the structured content; actions blocks list their
+     buttons. Suitable for `Text(LocalizedStringKey(_:))` since the
+     emitted markers are CommonMark-compatible.
+     */
+    public var plainText: String {
+        var parts: [String] = []
+        if let text { parts.append(text.text) }
+        if let fields, !fields.isEmpty {
+            parts.append(fields.map(\.text).joined(separator: "  "))
+        }
+        if let elements, !elements.isEmpty {
+            parts.append(elements.map(\.text).joined(separator: " "))
+        }
+        if let richText, !richText.isEmpty {
+            parts.append(richText.map(\.plainText).joined(separator: "\n"))
+        }
+        if let actions, !actions.isEmpty {
+            let buttons: [String] = actions.compactMap { element in
+                if case let .button(button) = element {
+                    let label = button.text?.text ?? "Button"
+                    if let url = button.url { return "\(label) → \(url)" }
+                    return label
+                }
+                return nil
+            }
+            if !buttons.isEmpty { parts.append(buttons.joined(separator: "\n")) }
+        }
+        return parts.filter { !$0.isEmpty }.joined(separator: "\n")
     }
 
     //--------------------------------------

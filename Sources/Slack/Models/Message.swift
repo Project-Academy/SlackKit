@@ -88,6 +88,26 @@ public struct Message: Codable, Equatable, @unchecked Sendable {
         if let metadata { dict["metadata"] = metadata.json }
         return dict
     }
+
+    //--------------------------------------
+    // MARK: - PLAIN TEXT -
+    //--------------------------------------
+    /**
+     Best-effort flat-text rendering. Prefers `text` (Slack's
+     fallback string, almost always populated), but when it's empty
+     or whitespace falls back to walking `blocks` via
+     `Block.plainText`. Output uses CommonMark markers so it's
+     suitable for `Text(LocalizedStringKey(_:))`.
+     */
+    public var plainText: String {
+        let trimmed = text.trimmingCharacters(in: .whitespacesAndNewlines)
+        if !trimmed.isEmpty { return text }
+        return blocks?
+            .map(\.plainText)
+            .filter { !$0.isEmpty }
+            .joined(separator: "\n")
+            ?? ""
+    }
 }
 
 extension Message {
