@@ -12,6 +12,7 @@ private enum Users: String, Endpoints {
     static let base = API.baseURL
     
     case list
+    case info
     case profileGet = "profile.get"
     case profileSet = "profile.set"
     
@@ -36,6 +37,37 @@ extension Member {
         }
     }
     
+    /**
+     Fetches full member info via `users.info`.
+
+     Unlike ``getProfile()`` (which returns a ``Profile`` with no membership
+     flags), this returns the whole ``Member`` — including ``Member/deleted``,
+     i.e. whether the member has been deactivated on the workspace.
+
+     - Parameters:
+       - id: The Slack member ID to look up.
+       - author: The workspace's ``Author`` (e.g. a ``Bot`` carrying that
+                 workspace's bot token) used to authenticate the request. When
+                 `nil`, ``Slack/defaultAuthor`` is used instead.
+     */
+    public static func getInfo(_ id: String, as author: Author? = nil) async throws -> Member {
+
+        let resp = try await Users.info.GET
+            .from(author)
+            .params(["user": id])
+            .response()
+
+        guard let response = try? resp.asType(Response.self),
+              let member = response.user
+        else { throw SlackError.Users(resp.json) }
+        return member
+
+        struct Response: Decodable {
+            let ok: Bool
+            let user: Member?
+        }
+    }
+
     public func getProfile() async throws -> Profile {
         
         let resp = try await Users.profileGet.GET
