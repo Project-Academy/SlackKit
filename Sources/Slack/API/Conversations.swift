@@ -106,12 +106,16 @@ extension Channel {
     }
     
     @discardableResult
-    public func join() async throws -> Channel {
-        
+    public func join(as author: Author? = nil) async throws -> Channel {
+
+        // `author` joins the channel on that user's behalf (their token);
+        // nil falls back to `Slack.defaultAuthor` via preProcess (the bot),
+        // so existing callers are unaffected.
         let resp = try await Conversations.join.POST
             .params(["channel": id])
+            .from(author)
             .response()
-        
+
         guard let response = try? resp.asType(Response.self),
               let channel = response.channel
         else { throw SlackError.Conversations(resp.json)  }
@@ -119,7 +123,7 @@ extension Channel {
             print("Join warning: \(warning)")
         }
         return channel
-        
+
     }
     
     @discardableResult
