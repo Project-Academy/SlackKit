@@ -6,9 +6,7 @@ import PackageDescription
 let package = Package(
     name: "SlackKit",
     platforms: [
-        .tvOS   (.v18),
-        .iOS    ("17.6"),
-        .macOS  (.v13),
+        .iOS("17.6"),
         .macCatalyst(.v18)
     ],
     products: [
@@ -16,6 +14,13 @@ let package = Package(
         .library(
             name: "Slack",
             targets: ["Slack"]
+        ),
+        // The departure lounge: org-as-principal capabilities scheduled to move
+        // behind trusted server-side endpoints. An `import SlackOrg` in an app
+        // marks an org-principal call site — the migration checklist.
+        .library(
+            name: "SlackOrg",
+            targets: ["SlackOrg"]
         ),
     ],
     dependencies: [
@@ -28,6 +33,12 @@ let package = Package(
             name: "Slack",
             dependencies: [
                 .Tapioca
+            ]
+        ),
+        .target(
+            name: "SlackOrg",
+            dependencies: [
+                "Slack"
             ]
         ),
 
