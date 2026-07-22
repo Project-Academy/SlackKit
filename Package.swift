@@ -7,7 +7,10 @@ let package = Package(
     name: "SlackKit",
     platforms: [
         .iOS("17.6"),
-        .macCatalyst(.v18)
+        .macCatalyst(.v18),
+        // Declared to match Tapioca's floor — undeclared, macOS defaults to
+        // 10.13 and `swift build` fails on the dependency's 13.0 requirement.
+        .macOS(.v13)
     ],
     products: [
         // Products define the executables and libraries a package produces, making them visible to other packages.

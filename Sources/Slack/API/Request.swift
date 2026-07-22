@@ -8,6 +8,9 @@
 //  chainable modifiers (`.message(...)`, `.from(...)`, `.to(...)`,
 //  `.messageAt(...)`) live below as a constrained extension.
 //
+//  The modifiers are `package`-scoped: they are wire plumbing, usable by this
+//  package's facades (Client/ and the SlackOrg module) but not by apps.
+//
 
 import Foundation
 import Tapioca
@@ -19,13 +22,13 @@ extension DefaultRequest where API == Slack {
     //--------------------------------------
     // MARK: - MODIFIERS -
     //--------------------------------------
-    public func message(_ msg: Message) -> Self {
+    package func message(_ msg: Message) -> Self {
         let request = self
             .params(msg.json)
         return request
     }
 
-    public func from(_ author: Author?) -> Self {
+    package func from(_ author: Author?) -> Self {
         guard let author else { return self }
 
         var request = self
@@ -46,13 +49,13 @@ extension DefaultRequest where API == Slack {
         return request
     }
 
-    public func to(_ channel: String) -> Self {
+    package func to(_ channel: String) -> Self {
         var request = self
         request.params["channel"] = channel
         return request
     }
 
-    public func messageAt(_ ts: String, in channel: String) -> Self {
+    package func messageAt(_ ts: String, in channel: String) -> Self {
         let request = self
             .params(["ts": ts, "channel": channel])
         return request

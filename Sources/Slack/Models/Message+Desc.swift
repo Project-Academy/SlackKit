@@ -27,3 +27,15 @@ extension Message: CustomStringConvertible {
         return msg + ")"
     }
 }
+
+extension Array where Element == Message {
+    public var description: String {
+        var array = "[\n\t"
+        for elem in self {
+            array += "\(elem)"
+            if elem != self.last! { array += ",\n\t" }
+            else { array += "\n" }
+        }
+        return array + "]"
+    }
+}

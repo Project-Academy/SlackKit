@@ -8,19 +8,10 @@
 import Foundation
 
 public struct Field: Codable, Sendable {
-    
+
     public let label: String
     public let value: String?
     public let alt: String?
-    
-}
 
-
-struct ProfileResponse: Decodable {
-    
-    let profile: ProfileSchema?
-    
-    
-    
 }
 

@@ -7,7 +7,7 @@
 
 import Foundation
 
-public struct Message: Codable, Equatable, @unchecked Sendable {
+public struct Message: Codable, Equatable, Sendable {
     
     //--------------------------------------
     // MARK: - VARIABLES -
@@ -112,7 +112,7 @@ public struct Message: Codable, Equatable, @unchecked Sendable {
 
 extension Message {
     
-    public struct Metadata: Codable, Equatable {
+    public struct Metadata: Codable, Equatable, Sendable {
         public var event_type: String
         public var event_payload: [String: String]
         
@@ -129,13 +129,13 @@ extension Message {
         }
     }
     
-    public enum Subtype: String, Codable {
+    public enum Subtype: String, Codable, Sendable {
         case channel_purpose
         case channel_join
         case tombstone
     }
     
-    public struct Reaction: Codable, Equatable {
+    public struct Reaction: Codable, Equatable, Sendable {
         public let name: String
         public let users: [String]
         public let count: Int

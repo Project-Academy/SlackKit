@@ -7,9 +7,9 @@
 
 //public protocol SlackError: Error {}
 
-public enum SlackError: Error, @unchecked Sendable {
-    case Chat(_ error: Any?)
-    case Conversations(_ error: Any?)
-    case Reactions(_ error: Any?)
-    case Users(_ error: Any?)
+public enum SlackError: Error, Sendable {
+    case Chat(_ error: String?)
+    case Conversations(_ error: String?)
+    case Reactions(_ error: String?)
+    case Users(_ error: String?)
 }

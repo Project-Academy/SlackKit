@@ -7,7 +7,7 @@
 
 import Foundation
 
-public struct Block: Codable, Equatable {
+public struct Block: Codable, Equatable, Sendable {
 
     //--------------------------------------
     // MARK: - VARIABLES -
