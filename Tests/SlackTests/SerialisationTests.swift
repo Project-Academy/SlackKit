@@ -298,3 +298,79 @@ struct ReceivedMessageTests {
         #expect(msg.plainText == "from a block")
     }
 }
+
+//--------------------------------------
+// MARK: - TOLERANT DECODING -
+//--------------------------------------
+
+/// From the 2026-07-18 audit (F9, F10): shapes Slack legally sends that used to
+/// fail decoding — and, because a failed decode took the whole response with
+/// it, lost an entire member list or history page.
+@Suite("Tolerant decoding")
+struct TolerantDecodingTests {
+
+    /// Labels only come back with `include_labels=true`; `users.info` and
+    /// `users.list` don't ask for them.
+    @Test("a profile field without a label decodes")
+    func labellessFieldDecodes() throws {
+        let field = try decoder.decode(Field.self, from: Data(#"{"value":"Physics","alt":""}"#.utf8))
+        #expect(field.label == nil)
+        #expect(field.value == "Physics")
+    }
+
+    @Test("a member carrying custom fields decodes")
+    func memberWithCustomFieldsDecodes() throws {
+        let member = try decoder.decode(Member.self, from: Data("""
+        {"id":"U1","profile":{"real_name":"A Person",
+         "fields":{"Xf01":{"value":"Physics","alt":""}}}}
+        """.utf8))
+        #expect(member.profile?.fields?["Xf01"]?.value == "Physics")
+    }
+
+    /// A context block may legally hold image elements alongside text.
+    @Test("a context block with an image element decodes")
+    func contextWithImageDecodes() throws {
+        let block = try decodeBlock("""
+        {"type":"context","elements":[
+          {"type":"mrkdwn","text":"posted by"},
+          {"type":"image","image_url":"https://example.com/a.png","alt_text":"avatar"}]}
+        """)
+
+        #expect(block.elements?.count == 2)
+        #expect(block.plainText.contains("posted by"))
+        #expect(block.plainText.contains("avatar"))
+
+        let encoded = try encodeToObject(block)
+        let elements = try #require(encoded["elements"] as? [[String: Any]])
+        #expect(elements[1]["type"] as? String == "image")
+        #expect(elements[1]["image_url"] as? String == "https://example.com/a.png")
+    }
+
+    @Test("an unknown context element round-trips verbatim")
+    func unknownContextElementPreserved() throws {
+        let block = try decodeBlock(#"{"type":"context","elements":[{"type":"video","src":"x"}]}"#)
+        let encoded = try encodeToObject(block)
+        let elements = try #require(encoded["elements"] as? [[String: Any]])
+        #expect(elements[0]["type"] as? String == "video")
+        #expect(elements[0]["src"] as? String == "x")
+    }
+
+    /// `event_payload` is arbitrary JSON, and `history` asks for all metadata.
+    @Test("message metadata with a non-string payload decodes")
+    func richMetadataDecodes() throws {
+        let msg = try decoder.decode(ReceivedMessage.self, from: Data("""
+        {"text":"hi","metadata":{"event_type":"submission",
+         "event_payload":{"count":3,"ok":true,"nested":{"id":"x"}}}}
+        """.utf8))
+
+        #expect(msg.metadata?.event_payload["count"] == .number(3))
+        #expect(msg.metadata?.event_payload["ok"] == .bool(true))
+        #expect(msg.metadata?.event_payload["nested"]?["id"]?.stringValue == "x")
+    }
+
+    @Test("the all-strings metadata convenience still works")
+    func stringMetadataConvenience() throws {
+        let metadata = Message.Metadata("library_ask_for_help", ["user_id": "U1"])
+        #expect(metadata.event_payload["user_id"] == .string("U1"))
+    }
+}

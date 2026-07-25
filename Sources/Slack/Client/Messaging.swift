@@ -59,6 +59,12 @@ extension MessageResponse {
      - important: `chat.update` only succeeds as the identity that posted the message —
        pass the same `author` the message was originally sent `from` (or leave `nil`
        only when it was posted by ``Slack/Slack/defaultAuthor``).
+
+     - warning: `newMessage` **replaces** the message; it is not merged into it.
+       Slack removes the existing `blocks` when an update carries `text` without
+       them, so updating a Block Kit message with a text-only ``Message`` strips
+       its layout. Carry the blocks forward — `received.recomposed()` gives you
+       the original content to edit.
      */
     @discardableResult
     public func update(to newMessage: Message, author: Author? = nil) async throws -> MessageResponse {

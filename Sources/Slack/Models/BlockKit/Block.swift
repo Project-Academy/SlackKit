@@ -53,11 +53,12 @@ public struct Block: Codable, Equatable, Sendable {
     /**
      Used only for Context Blocks.
 
-     A mixed-element array. The current builder accepts mrkdwn strings;
-     image element support can be added later if needed.
+     A genuinely mixed array — Slack allows text objects **and** image elements
+     here, so this is `[ContextElement]` rather than `[Text]`. Decoding it as
+     text-only meant one image in one context block failed the whole page.
      - important: Maximum number of items is 10.
      */
-    public var elements: [Text]?
+    public var elements: [ContextElement]?
 
     /**
      Rich-text content of a `rich_text` block — set only when
@@ -87,7 +88,7 @@ public struct Block: Codable, Equatable, Sendable {
         block_id: String? = nil,
         text: Text? = nil,
         fields: [Text]? = nil,
-        elements: [Text]? = nil,
+        elements: [ContextElement]? = nil,
         richText: [RichTextElement]? = nil,
         actions: [ActionElement]? = nil
     ) {
@@ -155,7 +156,7 @@ public struct Block: Codable, Equatable, Sendable {
      - note: Maximum number of elements is 10.
      */
     public static func context(_ items: [String]) -> Block {
-        let elements = items.map { Text($0) }
+        let elements = items.map { ContextElement.text(Text($0)) }
         return .init(type: BlockType.context.rawValue, elements: elements)
     }
 
@@ -168,8 +169,8 @@ public struct Block: Codable, Equatable, Sendable {
 
      - `rich_text` → `[RichTextElement]` (lists, quotes, inline runs).
      - `actions`   → `[ActionElement]` (buttons + other interactives).
-     - all other types (section / header / context / …) → `[Text]`,
-       as documented.
+     - all other types (section / header / context / …) → `[ContextElement]`
+       (text objects and image elements, mixed), as documented.
 
      Unknown `type` values still decode (we capture the raw type
      string and leave the type-specific fields nil) so a future Slack
@@ -196,7 +197,7 @@ public struct Block: Codable, Equatable, Sendable {
             self.elements = nil
             self.richText = nil
         default:
-            self.elements = try c.decodeIfPresent([Text].self, forKey: .elements)
+            self.elements = try c.decodeIfPresent([ContextElement].self, forKey: .elements)
             self.richText = nil
             self.actions  = nil
         }
@@ -240,7 +241,7 @@ public struct Block: Codable, Equatable, Sendable {
             parts.append(fields.map(\.text).joined(separator: "  "))
         }
         if let elements, !elements.isEmpty {
-            parts.append(elements.map(\.text).joined(separator: " "))
+            parts.append(elements.map(\.plainText).filter { !$0.isEmpty }.joined(separator: " "))
         }
         if let richText, !richText.isEmpty {
             parts.append(richText.map(\.plainText).joined(separator: "\n"))

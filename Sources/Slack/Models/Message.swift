@@ -76,14 +76,28 @@ public struct Message: Encodable, Equatable, Sendable {
 
 extension Message {
 
+    /**
+     Private, app-readable payload attached to a message.
+
+     `event_payload` holds arbitrary JSON, not just strings — Slack will return
+     whatever the posting app put there, and `conversations.history` asks for
+     `include_all_metadata`. Typing it as `[String: String]` meant one message
+     with a nested or numeric payload failed to decode and took its whole page
+     with it.
+     */
     public struct Metadata: Codable, Equatable, Sendable {
 
         public var event_type: String
-        public var event_payload: [String: String]
+        public var event_payload: [String: JSONValue]
 
-        public init(_ type: String, _ payload: [String: String]) {
+        public init(_ type: String, _ payload: [String: JSONValue]) {
             event_type = type
             event_payload = payload
+        }
+
+        /// Convenience for the common all-strings case.
+        public init(_ type: String, _ payload: [String: String]) {
+            self.init(type, payload.mapValues(JSONValue.string))
         }
     }
 }
