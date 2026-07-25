@@ -13,14 +13,12 @@ import Foundation
  Package-scoped: apps never call the wire layer directly — the facades in
  Client/ are the public surface.
  */
-package enum Reactions: String, Endpoints {
+package enum Reactions: String, SlackEndpoint {
     package typealias API = Slack
-    package static let base = API.baseURL
-
     case add
     case get
     case list
     case remove
 
-    package var path: URL { Self.base.appending(component: "reactions.\(rawValue)") }
+    package var method: String { "reactions.\(rawValue)" }
 }

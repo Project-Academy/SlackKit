@@ -15,42 +15,38 @@ public struct Block: Codable, Equatable, Sendable {
     public let type: String
     /**
      A unique identifier for a block.
-     
+
      If not specified, one will be generated.
      You can use this `block_id` when you receive an interaction payload to identify the source of the action.
-     
+
      - note: Maximum length for this field is 255 characters.
-     
+
      `block_id` should be unique for each message and each iteration of a message.
      If a message is updated, use a new `block_id`.
      */
     public var block_id: String?
-    
+
     /**
-     The text for the block, in the form of a ``Block.Text``.
+     The text for the block, in the form of a ``Block/Text``.
      Usage depends on the type of block it is in; see below sections.
-     
+
      ## Section Block
      Minimum length for the text in this field is 1 and maximum length is 3000 characters.
      This field is not _required_ if a valid array of `fields` objects is provided instead.
-     
+
      ## Heading Block
      Maximum length for the text in this field is 150 characters.
-     The text for the block, in the form of a `plain_text` ``Block.Text``.
+     The text for the block, in the form of a `plain_text` ``Block/Text``.
      */
     public var text: Text?
-    
-    
-    
+
     /**
      Used only for Section Blocks.
-     
+
      Required if no `text` is provided. An array of text elements.
      Any text objects included with `fields` will be rendered in a compact format that allows for 2 columns of side-by-side text.
      - note: Maximum length for the text in each item is 2000 characters.
      - important: Maximum number of items is 10.
-     
-     [Click here for an example.](https://api.slack.com/tools/block-kit-builder?blocks=%5B%0A%09%7B%0A%09%09%22type%22%3A%20%22section%22%2C%0A%09%09%22text%22%3A%20%7B%0A%09%09%09%22text%22%3A%20%22A%20message%20*with%20some%20bold%20text*%20and%20_some%20italicized%20text_.%22%2C%0A%09%09%09%22type%22%3A%20%22mrkdwn%22%0A%09%09%7D%2C%0A%09%09%22fields%22%3A%20%5B%0A%09%09%09%7B%0A%09%09%09%09%22type%22%3A%20%22mrkdwn%22%2C%0A%09%09%09%09%22text%22%3A%20%22*Priority*%22%0A%09%09%09%7D%2C%0A%09%09%09%7B%0A%09%09%09%09%22type%22%3A%20%22mrkdwn%22%2C%0A%09%09%09%09%22text%22%3A%20%22*Type*%22%0A%09%09%09%7D%2C%0A%09%09%09%7B%0A%09%09%09%09%22type%22%3A%20%22plain_text%22%2C%0A%09%09%09%09%22text%22%3A%20%22High%22%0A%09%09%09%7D%2C%0A%09%09%09%7B%0A%09%09%09%09%22type%22%3A%20%22plain_text%22%2C%0A%09%09%09%09%22text%22%3A%20%22String%22%0A%09%09%09%7D%0A%09%09%5D%0A%09%7D%0A%5D)
      */
     public var fields: [Text]?
 
@@ -65,17 +61,17 @@ public struct Block: Codable, Equatable, Sendable {
 
     /**
      Rich-text content of a `rich_text` block — set only when
-     `type == "rich_text"`. See `RichTextElement` for the structural
+     `type == "rich_text"`. See ``Block/RichTextElement`` for the structural
      model (sections / lists / quotes / preformatted) and
-     `RichTextInline` for the leaf-node kinds (text / link / emoji /
+     ``Block/RichTextInline`` for the leaf-node kinds (text / link / emoji /
      user / channel / broadcast / …).
      */
     public var richText: [RichTextElement]?
 
     /**
      Interactive elements inside an `actions` block — set only when
-     `type == "actions"`. Currently models `Button`; other element
-     kinds surface as `.unknown(type:)`.
+     `type == "actions"`. Currently models ``Block/Button``; other element
+     kinds round-trip verbatim via ``Block/ActionElement/unknown(type:raw:)``.
      */
     public var actions: [ActionElement]?
 
@@ -109,22 +105,22 @@ public struct Block: Codable, Equatable, Sendable {
     //--------------------------------------
     /**
      Visually separates pieces of info inside of a message.
-     
+
      ## Available in Surfaces
      - Modals
      - Messages
      - Home tabs
      */
     public static var divider: Block { .init(type: BlockType.divider.rawValue) }
-    
+
     /**
      Displays a larger-sized text.
-     
+
      ## Available in Surfaces
      - Modals
      - Messages
      - Home tabs
-     
+
      - note: Maximum length for the text in this field is 150 characters.
      */
     public static func header(_ text: String, showEmojis: Bool = true) -> Block {
@@ -133,24 +129,12 @@ public struct Block: Codable, Equatable, Sendable {
     }
     /**
      Displays text, possibly alongside elements.
-     
+
      ## Available in Surfaces
      - Modals
      - Messages
      - Home tabs
-     
-     ## Compatible Block Elements
-     - Button
-     - Checkboxes
-     - Date picker
-     - Image
-     - Multi-select menus
-     - Overflow menu
-     - Radio button
-     - Select menu
-     - Time picker
-     - Workflow buttons
-     
+
      - note: Maximum length for the text in this field is 3000 characters.
      */
     public static func section(_ text: String, verbatim: Bool = false) -> Block {
@@ -176,20 +160,6 @@ public struct Block: Codable, Equatable, Sendable {
     }
 
     //--------------------------------------
-    // MARK: - JSON -
-    //--------------------------------------
-    public var json: [String : Sendable] {
-        var dict: [String: Sendable] = ["type": type]
-
-        if let text { dict["text"] = text.json }
-        if let fields { dict["fields"] = fields.map(\.json) }
-        if let elements { dict["elements"] = elements.map(\.json) }
-
-        if let block_id { dict["block_id"] = block_id }
-        return dict
-    }
-
-    //--------------------------------------
     // MARK: - CODABLE -
     //--------------------------------------
     /**
@@ -197,15 +167,17 @@ public struct Block: Codable, Equatable, Sendable {
      array depends on the block's `type`:
 
      - `rich_text` → `[RichTextElement]` (lists, quotes, inline runs).
-       Modelled by `RichTextElement` / `RichTextInline`.
      - `actions`   → `[ActionElement]` (buttons + other interactives).
-       Modelled by `ActionElement` / `Button`.
      - all other types (section / header / context / …) → `[Text]`,
        as documented.
 
      Unknown `type` values still decode (we capture the raw type
      string and leave the type-specific fields nil) so a future Slack
      block kind never blows up the surrounding message.
+
+     This is the **only** serialiser. Outgoing bodies are built by
+     `JSONEncoder` over these same conformances, so what a block decodes to and
+     what it posts as cannot disagree.
      */
     public init(from decoder: Decoder) throws {
         let c = try decoder.container(keyedBy: CodingKeys.self)
@@ -275,12 +247,10 @@ public struct Block: Codable, Equatable, Sendable {
         }
         if let actions, !actions.isEmpty {
             let buttons: [String] = actions.compactMap { element in
-                if case let .button(button) = element {
-                    let label = button.text?.text ?? "Button"
-                    if let url = button.url { return "\(label) → \(url)" }
-                    return label
-                }
-                return nil
+                guard case let .button(button) = element else { return nil }
+                let label = button.text?.text ?? "Button"
+                if let url = button.url { return "\(label) → \(url)" }
+                return label
             }
             if !buttons.isEmpty { parts.append(buttons.joined(separator: "\n")) }
         }

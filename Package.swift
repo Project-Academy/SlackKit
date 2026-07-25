@@ -45,6 +45,14 @@ let package = Package(
             ]
         ),
 
+        // Regression cover for the defects found in the 2026-07-25 audit.
+        // These are pure model/serialisation tests — no network, so they run
+        // anywhere and fail loudly if the wire format drifts again.
+        .testTarget(
+            name: "SlackTests",
+            dependencies: ["Slack"]
+        ),
+
     ]
 )
 extension String {

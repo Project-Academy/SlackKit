@@ -7,7 +7,7 @@
 
 import Foundation
 
-public struct Channel: Codable, Sendable {
+public struct Channel: Codable, Equatable, Sendable {
     
     //--------------------------------------
     // MARK: - VARIABLES -
@@ -65,7 +65,7 @@ extension Channel: CustomStringConvertible {
 }
 extension Channel {
     
-    public struct Purpose: Codable, Sendable {
+    public struct Purpose: Codable, Equatable, Sendable {
         public var creator: String?
         public var last_set: Int?
         public var value: String?

@@ -31,6 +31,9 @@ extension Block {
         case list(style: ListStyle, indent: Int?, items: [RichTextElement])
         case quote([RichTextInline])
         case preformatted([RichTextInline])
+        /// A `rich_text_*` kind this kit doesn't model, kept verbatim so it
+        /// survives a round trip intact.
+        case unknown(type: String, raw: [String: JSONValue])
 
         public enum ListStyle: String, Codable, Sendable {
             case bullet
@@ -60,13 +63,26 @@ extension Block {
                 let items  = (try? c.decode([RichTextElement].self, forKey: .elements)) ?? []
                 self = .list(style: style, indent: indent, items: items)
             default:
-                // Unknown rich_text_* kind — preserve a sentinel so
-                // the surrounding decode still succeeds.
-                self = .section([])
+                // Unknown rich_text_* kind — keep the whole body so it
+                // re-encodes as what Slack sent. Collapsing it to an empty
+                // section (as this used to) silently deleted the content of
+                // any message relayed through the kit.
+                let raw = try JSONValue(from: decoder)
+                self = .unknown(type: type, raw: raw.objectDropping(["type"]))
             }
         }
 
         public func encode(to encoder: Encoder) throws {
+            // The `.unknown` branch writes a whole object of its own, so the
+            // keyed container is only opened for the modelled kinds — opening
+            // two containers on one encoder is a runtime trap.
+            if case let .unknown(type, raw) = self {
+                var fields = raw
+                fields["type"] = .string(type)
+                try JSONValue.object(fields).encode(to: encoder)
+                return
+            }
+
             var c = encoder.container(keyedBy: CodingKeys.self)
             switch self {
             case .section(let elements):
@@ -83,6 +99,8 @@ extension Block {
                 try c.encode(style, forKey: .style)
                 if let indent { try c.encode(indent, forKey: .indent) }
                 try c.encode(items, forKey: .elements)
+            case .unknown:
+                break  // handled above, before the container was opened
             }
         }
 
@@ -98,10 +116,17 @@ extension Block {
             case .preformatted(let inlines):
                 return "```\n" + inlines.map(\.plainText).joined() + "\n```"
             case .list(let style, _, let items):
-                let bullet = style == .bullet ? "•" : "1."
-                return items
-                    .map { "\(bullet) \($0.plainText)" }
+                // Ordered lists number from 1 upward; bullets repeat the mark.
+                return items.enumerated()
+                    .map { index, item in
+                        let mark = style == .bullet ? "•" : "\(index + 1)."
+                        return "\(mark) \(item.plainText)"
+                    }
                     .joined(separator: "\n")
+            case .unknown:
+                // No text we can claim to understand. Rendering a guess would
+                // be worse than rendering nothing.
+                return ""
             }
         }
     }
@@ -125,7 +150,8 @@ extension Block {
         case broadcast(range: String)  // "here" / "channel" / "everyone"
         case date(timestamp: Int, format: String?, fallback: String?)
         case color(value: String)
-        case other
+        /// An inline kind this kit doesn't model, kept verbatim.
+        case unknown(type: String, raw: [String: JSONValue])
 
         public struct Style: Codable, Equatable, Sendable {
             public var bold:   Bool?
@@ -191,11 +217,21 @@ extension Block {
                     value: (try? c.decode(String.self, forKey: .value)) ?? ""
                 )
             default:
-                self = .other
+                let raw = try JSONValue(from: decoder)
+                self = .unknown(type: type, raw: raw.objectDropping(["type"]))
             }
         }
 
         public func encode(to encoder: Encoder) throws {
+            // See the note on `RichTextElement.encode` — `.unknown` writes its
+            // own object, so it must run before any keyed container is opened.
+            if case let .unknown(type, raw) = self {
+                var fields = raw
+                fields["type"] = .string(type)
+                try JSONValue.object(fields).encode(to: encoder)
+                return
+            }
+
             var c = encoder.container(keyedBy: CodingKeys.self)
             switch self {
             case .text(let s, let style):
@@ -234,9 +270,8 @@ extension Block {
             case .color(let value):
                 try c.encode("color", forKey: .type)
                 try c.encode(value, forKey: .value)
-            case .other:
-                try c.encode("text", forKey: .type)
-                try c.encode("", forKey: .text)
+            case .unknown:
+                break  // handled above, before the container was opened
             }
         }
 
@@ -264,7 +299,7 @@ extension Block {
                 return fallback ?? ""
             case .color(let value):
                 return value
-            case .other:
+            case .unknown:
                 return ""
             }
         }

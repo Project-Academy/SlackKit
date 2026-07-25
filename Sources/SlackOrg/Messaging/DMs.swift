@@ -8,6 +8,7 @@
 import Foundation
 import Slack
 
+@MainActor
 extension Message {
 
     /**
@@ -30,6 +31,7 @@ extension Message {
     }
 }
 
+@MainActor
 extension Member {
 
     /**
@@ -48,24 +50,26 @@ extension Member {
 
     public static func getDM(withUser id: String, createIfNeeded: Bool = true, as author: Author? = nil) async throws -> Channel {
 
-        let resp = try await Conversations.open.POST
-            .from(author)
-            .params([
-                "users": id,
-                "return_im": true,
-                "prevent_creation": !createIfNeeded
-            ])
-            .response()
-
-        guard let response = try? resp.asType(Response.self),
-              let channel = response.channel
-        else { throw SlackError.Conversations(resp.json?.description)  }
-        return channel
-
-        struct Response: Decodable {
-            let ok: Bool
-            let channel: Channel?
-            let warning: String?
+        let response: OpenResponse = try await Conversations.open.write {
+            $0.from(author ?? Slack.defaultAuthor)
+              .body(OpenConversationPayload(
+                  users: id,
+                  return_im: true,
+                  prevent_creation: !createIfNeeded
+              ))
         }
+
+        guard let channel = response.channel else {
+            throw SlackError.unreadable(
+                method: Conversations.open.method,
+                detail: "ok:true with no `channel`"
+            )
+        }
+        return channel
+    }
+
+    private struct OpenResponse: Decodable, Sendable {
+        let channel: Channel?
+        let warning: String?
     }
 }

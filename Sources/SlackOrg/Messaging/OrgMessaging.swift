@@ -58,9 +58,9 @@ public protocol OrgMessaging: Sendable {
 public struct DirectSlackOrgClient: OrgMessaging {
 
     /// The bot credential + persona this client acts as.
-    public let bot: Bot
+    public let bot: Author
 
-    public init(bot: Bot) { self.bot = bot }
+    public init(bot: Author) { self.bot = bot }
 
     @discardableResult
     public func post(_ message: Message, to channel: Channel) async throws -> MessageResponse {
@@ -78,6 +78,6 @@ public struct DirectSlackOrgClient: OrgMessaging {
     }
 
     public func delete(_ receipt: MessageResponse) async throws {
-        _ = try await receipt.delete(as: bot)
+        try await receipt.delete(as: bot)
     }
 }

@@ -12,6 +12,7 @@
 
 import Foundation
 
+@MainActor
 extension Message {
 
     /**
@@ -31,27 +32,25 @@ extension Message {
        So: when DMing a user as the org's bot, prefer `sendDM(to:from:)` from the **SlackOrg** module,
        which resolves the DM channel for you. Only target a user's ID directly when you deliberately
        want the Slackbot appearance.
+
+     - Parameter sender: The principal to post as. Falls back to
+       ``Slack/Slack/defaultAuthor``; if that is unset too, the call goes out
+       unauthenticated and Slack answers `not_authed`.
      */
     @discardableResult
     public func send(from sender: Author? = nil, to channel: String) async throws -> MessageResponse {
 
-        let author = sender != nil
-        ? sender
-        : await Slack.defaultAuthor
+        let author = sender ?? Slack.defaultAuthor
 
-        let resp = try await Chat.postMessage.POST
-            .message(self)
-            .from(author)
-            .to(channel)
-            .response()
-
-        guard let chatResp = try? resp.asType(ChatResponse.self),
-              let response = MessageResponse(chatResp)
-        else { throw SlackError.Chat(resp.json?["error"] as? String)  }
-        return response
+        let response: ChatResponse = try await Chat.postMessage.write {
+            $0.from(author)
+              .body(PostMessagePayload(self, to: channel, as: author?.persona))
+        }
+        return MessageResponse(response)
     }
 }
 
+@MainActor
 extension MessageResponse {
 
     /**
@@ -59,35 +58,30 @@ extension MessageResponse {
 
      - important: `chat.update` only succeeds as the identity that posted the message —
        pass the same `author` the message was originally sent `from` (or leave `nil`
-       only when it was posted by `Slack.defaultAuthor`).
+       only when it was posted by ``Slack/Slack/defaultAuthor``).
      */
     @discardableResult
     public func update(to newMessage: Message, author: Author? = nil) async throws -> MessageResponse {
 
-        let resp = try await Chat.update.POST
-            .messageAt(ts, in: channel.id)
-            .message(newMessage)
-            .from(author)
-            .response()
-
-        guard let chatResp = try? resp.asType(ChatResponse.self),
-              let response = MessageResponse(chatResp)
-        else { throw SlackError.Chat(resp.json?.description)  }
-        return response
+        let response: ChatResponse = try await Chat.update.write {
+            $0.from(author ?? Slack.defaultAuthor)
+              .body(UpdateMessagePayload(newMessage, at: ts, in: channel.id))
+        }
+        return MessageResponse(response)
     }
 
-    @discardableResult
-    public func delete(as author: Author? = nil) async throws -> MessageResponse {
+    /**
+     Deletes the message this receipt points at.
 
-        let resp = try await Chat.delete.POST
-            .params(["ts": ts, "channel": channel.id])
-            .from(author)
-            .response()
+     Returns nothing: the message is gone, so there is no receipt left to act
+     on. (This used to hand back a `MessageResponse` wrapping the deleted
+     message, which read as though you could still chain off it.)
+     */
+    public func delete(as author: Author? = nil) async throws {
 
-        guard let chatResp = try? resp.asType(ChatResponse.self),
-              let response = MessageResponse(chatResp, message: message)
-        else { throw SlackError.Chat(resp.json?.description)  }
-        return response
-
+        _ = try await Chat.delete.write(SlackEnvelope.self) {
+            $0.from(author ?? Slack.defaultAuthor)
+              .body(DeleteMessagePayload(at: ts, in: channel.id))
+        }
     }
 }

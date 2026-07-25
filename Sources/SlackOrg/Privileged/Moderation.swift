@@ -11,89 +11,100 @@
 import Foundation
 import Slack
 
+@MainActor
 extension Channel {
 
+    /**
+     Joins `author` to this channel.
+
+     `conversations.join` is idempotent for public channels. Two refusals mean
+     the caller already has what it wanted and are therefore *not* errors:
+     `already_in_channel` (the repeat case) and
+     `method_not_supported_for_channel_type` (DMs and mpims can't be joined, and
+     don't need to be — posting works regardless). Everything else throws.
+     */
     @available(*, deprecated, message: "Org-principal capability — moving server-side; do not add call sites.")
     @discardableResult
     public func join(as author: Author? = nil) async throws -> Channel {
 
-        // `author` joins the channel on that user's behalf (their token);
-        // nil falls back to `Slack.defaultAuthor` via preProcess (the bot),
-        // so existing callers are unaffected.
-        let resp = try await Conversations.join.POST
-            .params(["channel": id])
-            .from(author)
-            .response()
-
-        guard let response = try? resp.asType(Response.self),
-              let channel = response.channel
-        else { throw SlackError.Conversations(resp.json?.description)  }
-        if let warning = response.warning {
-            print("Join warning: \(warning)")
+        do {
+            let response: JoinResponse = try await Conversations.join.write {
+                $0.from(author ?? Slack.defaultAuthor)
+                  .body(ChannelMembershipPayload(channel: id))
+            }
+            if let warning = response.warning {
+                Slack.report("conversations.join: \(warning)")
+            }
+            return response.channel ?? self
+        } catch let SlackError.refused(_, code)
+            where code == .alreadyInChannel || code == .methodNotSupportedForChannelType {
+            return self
         }
-        return channel
+    }
 
+    private struct JoinResponse: Decodable, Sendable {
+        let channel: Channel?
+        let warning: String?
     }
 
     @available(*, deprecated, message: "Org-principal capability — moving server-side; do not add call sites.")
     @discardableResult
-    public func invite(_ user: Member) async throws -> Channel {
-        try await invite([user])
+    public func invite(_ user: Member, as author: Author? = nil) async throws -> Channel {
+        try await invite([user], as: author)
     }
 
+    /**
+     Invites `users` to this channel.
+
+     Slack can partially succeed here — invalid IDs come back in `errors` while
+     the valid ones are still invited. Those are reported through
+     ``Slack/Slack/diagnostics`` rather than thrown, because the call did do
+     what it could.
+     */
     @available(*, deprecated, message: "Org-principal capability — moving server-side; do not add call sites.")
     @discardableResult
-    public func invite(_ users: [Member]) async throws -> Channel {
+    public func invite(_ users: [Member], as author: Author? = nil) async throws -> Channel {
 
-        let resp = try await Conversations.invite.POST
-            .params([
-                "channel": id,
-                "users": users.compactMap(\.id).joined(separator: ","),
-                "force": true // When set to `true` and multiple user IDs are provided, continue inviting the valid ones while disregarding invalid IDs.
-            ])
-            .response()
-
-        guard let response = try? resp.asType(Response.self)
-        else { throw SlackError.Conversations(resp.json?.description)  }
-        if let warning = response.warning {
-            print("Invite warning: \(warning)")
+        let response: InviteResponse = try await Conversations.invite.write {
+            $0.from(author ?? Slack.defaultAuthor)
+              .body(InvitePayload(channel: id, users: users.map(\.id).joined(separator: ",")))
         }
-        if let errors = response.errors {
-            print("Invite errors: \(errors)")
+
+        if let warning = response.warning {
+            Slack.report("conversations.invite: \(warning)")
+        }
+        if let errors = response.errors, !errors.isEmpty {
+            Slack.report("conversations.invite: \(errors.map(\.description).joined(separator: ", "))")
         }
         return response.channel ?? self
-
-        struct Response: Decodable {
-            let ok: Bool
-            let channel: Channel?
-            let warning: String?
-
-            let errors: [InviteError]?
-
-            struct InviteError: Decodable, CustomStringConvertible {
-                let user: String
-                let error: String
-
-                var description: String {
-                    "\(user): \(error)"
-                }
-            }
-
-
-        }
-
     }
 
+    private struct InviteResponse: Decodable, Sendable {
+
+        let channel: Channel?
+        let warning: String?
+        let errors: [InviteError]?
+
+        struct InviteError: Decodable, Sendable, CustomStringConvertible {
+            let user: String
+            let error: String
+            var description: String { "\(user): \(error)" }
+        }
+    }
+
+    /**
+     Removes `user` from this channel.
+
+     Throws when the kick fails. It previously discarded the response entirely,
+     so "removed" and "you don't have permission to remove" were the same
+     outcome from the caller's side.
+     */
     @available(*, deprecated, message: "Org-principal capability — moving server-side; do not add call sites.")
     public func kick(_ user: Member, authority: Author? = nil) async throws {
 
-        _ = try await Conversations.kick.POST
-            .params([
-                "channel": id,
-                "user": user.id,
-            ])
-            .from(authority)
-            .response()
-
+        _ = try await Conversations.kick.write(SlackEnvelope.self) {
+            $0.from(authority ?? Slack.defaultAuthor)
+              .body(ChannelMembershipPayload(channel: id, user: user.id))
+        }
     }
 }

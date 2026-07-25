@@ -12,75 +12,83 @@
 import Foundation
 import Slack
 
+@MainActor
 extension Member {
 
+    /**
+     Every member of the workspace.
+
+     Follows Slack's cursor to the end. The single-shot version returned one
+     page, so a workspace larger than the page size looked smaller than it is —
+     the kind of truncation that reads as a complete answer.
+     */
     @available(*, deprecated, message: "Org-principal capability — moving server-side; do not add call sites.")
-    public static func list() async throws -> [Member] {
+    public static func list(as author: Author? = nil, maxMembers: Int? = nil) async throws -> [Member] {
 
-        let resp = try await Users.list.GET
-            .response()
-
-        guard let response = try? resp.asType(Response.self),
-              let members = response.members
-        else { throw SlackError.Users(resp.json?.description) }
-        return members
-
-        struct Response: Decodable {
-            let ok: Bool
-            let members: [Member]?
+        try await Users.list.readPages(Page.self, maxItems: maxMembers) {
+            $0.from(author ?? Slack.defaultAuthor)
         }
+    }
+
+    private struct Page: SlackPage {
+        let members: [Member]?
+        let response_metadata: SlackEnvelope.Metadata?
+        var items: [Member]? { members }
     }
 
     /**
      Fetches full member info via `users.info`.
 
-     Unlike ``getProfile()`` (which returns a `Profile` with no membership
+     Unlike ``getProfile(as:)`` (which returns a `Profile` with no membership
      flags), this returns the whole `Member` — including `deleted`,
      i.e. whether the member has been deactivated on the workspace.
 
      - Parameters:
        - id: The Slack member ID to look up.
-       - author: The workspace's `Author` (e.g. a `Bot` carrying that
-                 workspace's bot token) used to authenticate the request. When
-                 `nil`, `Slack.defaultAuthor` is used instead.
+       - author: The workspace's ``Slack/Author`` used to authenticate the
+                 request. When `nil`, ``Slack/Slack/defaultAuthor`` is used.
      */
     @available(*, deprecated, message: "Org-principal capability — moving server-side; do not add call sites.")
     public static func getInfo(_ id: String, as author: Author? = nil) async throws -> Member {
 
-        let resp = try await Users.info.GET
-            .from(author)
-            .params(["user": id])
-            .response()
-
-        guard let response = try? resp.asType(Response.self),
-              let member = response.user
-        else { throw SlackError.Users(resp.json?.description) }
-        return member
-
-        struct Response: Decodable {
-            let ok: Bool
-            let user: Member?
+        let response: InfoResponse = try await Users.info.read {
+            $0.from(author ?? Slack.defaultAuthor)
+              .params(["user": id])
         }
+        guard let member = response.user else {
+            throw SlackError.unreadable(method: Users.info.method, detail: "ok:true with no `user`")
+        }
+        return member
     }
 
+    private struct InfoResponse: Decodable, Sendable {
+        let user: Member?
+    }
+
+    /**
+     This member's profile.
+
+     - Parameter author: The credential to read as. Previously this call alone
+       ignored the author it was given and always used the global default,
+       which made "who is allowed to see this profile?" depend on load order.
+     */
     @available(*, deprecated, message: "Org-principal capability — moving server-side; do not add call sites.")
-    public func getProfile() async throws -> Profile {
+    public func getProfile(as author: Author? = nil) async throws -> Profile {
 
-        let resp = try await Users.profileGet.GET
-            .params([
-                "user": id,
-                "include_labels": true
-            ])
-            .response()
-
-        guard let response = try? resp.asType(Response.self),
-              let profile = response.profile
-        else { throw SlackError.Users(resp.json?.description) }
-        return profile
-
-        struct Response: Decodable {
-            let ok: Bool
-            let profile: Profile?
+        let response: ProfileResponse = try await Users.profileGet.read {
+            $0.from(author ?? Slack.defaultAuthor)
+              .params([
+                  "user": id,
+                  "include_labels": true
+              ])
         }
+        guard let profile = response.profile else {
+            throw SlackError.unreadable(method: Users.profileGet.method, detail: "ok:true with no `profile`")
+        }
+        return profile
+    }
+
+    private struct ProfileResponse: Decodable, Sendable {
+        let profile: Profile?
     }
 }

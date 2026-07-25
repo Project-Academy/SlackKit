@@ -13,10 +13,8 @@ import Foundation
  Package-scoped: apps never call the wire layer directly — the facades in
  Client/ and the SlackOrg module are the public surface.
  */
-package enum Conversations: String, Endpoints {
+package enum Conversations: String, SlackEndpoint {
     package typealias API = Slack
-    package static let base = API.baseURL
-
     case list
     case replies
     case history
@@ -27,5 +25,5 @@ package enum Conversations: String, Endpoints {
     case invite
     case kick
 
-    package var path: URL { Self.base.appending(component: "conversations.\(rawValue)") }
+    package var method: String { "conversations.\(rawValue)" }
 }

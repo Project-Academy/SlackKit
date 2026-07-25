@@ -63,22 +63,6 @@ extension Block {
         }
         
         //--------------------------------------
-        // MARK: - JSON -
-        //--------------------------------------
-        var json: [String: Sendable] {
-            var dict: [String: Sendable] = [
-                "type": type.rawValue,
-                "text": text
-            ]
-            if type == .plainText, let emoji {
-                dict["emoji"] = emoji
-            } else if type == .markdown, let verbatim {
-                dict["verbatim"] = verbatim
-            }
-            return dict
-        }
-        
-        //--------------------------------------
         // MARK: - TEXT TYPE ENUM -
         //--------------------------------------
         public enum TextType: String, Codable, Sendable {
