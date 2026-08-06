@@ -374,3 +374,60 @@ struct TolerantDecodingTests {
         #expect(metadata.event_payload["user_id"] == .string("U1"))
     }
 }
+
+//--------------------------------------
+// MARK: - UNKNOWN BLOCK PASSTHROUGH -
+//--------------------------------------
+
+@Suite("Unknown block passthrough")
+struct UnknownBlockTests {
+
+    /// An unmodelled block used to be stripped to its shared keys on
+    /// relay — `{"type": "image"}` is output Slack rejects.
+    @Test("an unmodelled block type round-trips key-complete")
+    func unmodelledBlockRoundTrips() throws {
+        let block = try decodeBlock("""
+        {
+          "type": "some_future_block",
+          "block_id": "b9",
+          "title": { "type": "plain_text", "text": "Hello" },
+          "payload": { "nested": [1, 2, 3], "flag": true }
+        }
+        """)
+
+        #expect(block.raw != nil)
+        #expect(block.block_id == "b9")
+
+        let encoded = try encodeToObject(block)
+        #expect(encoded["type"] as? String == "some_future_block")
+        #expect(encoded["block_id"] as? String == "b9")
+        let payload = try #require(encoded["payload"] as? [String: Any])
+        #expect(payload["nested"] as? [Double] == [1, 2, 3])
+        #expect((encoded["title"] as? [String: Any])?["text"] as? String == "Hello")
+
+        #expect(try decoder.decode(Block.self, from: encoder.encode(block)) == block)
+    }
+
+    /// Unknown types used to force-decode `elements` as `[ContextElement]`,
+    /// so a foreign shape there threw and killed the whole page.
+    @Test("a foreign elements shape under an unknown type doesn't throw")
+    func foreignElementsShapeTolerated() throws {
+        let block = try decodeBlock("""
+        { "type": "mystery", "elements": ["not", "objects"] }
+        """)
+        #expect(block.raw?["elements"] == .array([.string("not"), .string("objects")]))
+    }
+
+    /// A real, current failure: markdown's wire `text` is a raw string, and
+    /// the shared `text` key used to be force-decoded as a `Text` object.
+    /// Until T7 models the family, markdown must at least pass through.
+    @Test("a markdown block decodes and round-trips instead of throwing")
+    func markdownPassesThrough() throws {
+        let block = try decodeBlock("""
+        { "type": "markdown", "text": "**Lots of information here!!**" }
+        """)
+
+        let encoded = try encodeToObject(block)
+        #expect(encoded["text"] as? String == "**Lots of information here!!**")
+    }
+}

@@ -76,6 +76,18 @@ public struct Block: Codable, Equatable, Sendable {
      */
     public var actions: [ActionElement]?
 
+    /**
+     The complete body (minus `type`) of a block whose `type` this kit
+     doesn't model — set only for unmodelled types, and re-encoded verbatim.
+
+     Element-level `.unknown` cases weren't enough on their own: an
+     unmodelled *block* used to have its unrecognised keys silently dropped
+     (relaying stripped it to `{"type": …}`, which Slack rejects), and its
+     `elements` array was force-decoded as `[ContextElement]`, so a foreign
+     shape there threw and took the whole message down.
+     */
+    public var raw: [String: JSONValue]?
+
     //--------------------------------------
     // MARK: - INIT -
     //--------------------------------------
@@ -90,7 +102,8 @@ public struct Block: Codable, Equatable, Sendable {
         fields: [Text]? = nil,
         elements: [ContextElement]? = nil,
         richText: [RichTextElement]? = nil,
-        actions: [ActionElement]? = nil
+        actions: [ActionElement]? = nil,
+        raw: [String: JSONValue]? = nil
     ) {
         self.type = type
         self.block_id = block_id
@@ -99,6 +112,7 @@ public struct Block: Codable, Equatable, Sendable {
         self.elements = elements
         self.richText = richText
         self.actions = actions
+        self.raw = raw
     }
 
     //--------------------------------------
@@ -172,9 +186,10 @@ public struct Block: Codable, Equatable, Sendable {
      - all other types (section / header / context / …) → `[ContextElement]`
        (text objects and image elements, mixed), as documented.
 
-     Unknown `type` values still decode (we capture the raw type
-     string and leave the type-specific fields nil) so a future Slack
-     block kind never blows up the surrounding message.
+     Unmodelled `type` values still decode — their whole body is captured
+     in ``raw`` and re-encoded verbatim, and none of their fields are
+     force-decoded as modelled shapes, so a future Slack block kind never
+     blows up the surrounding message *and* never loses content on relay.
 
      This is the **only** serialiser. Outgoing bodies are built by
      `JSONEncoder` over these same conformances, so what a block decodes to and
@@ -182,7 +197,16 @@ public struct Block: Codable, Equatable, Sendable {
      */
     public init(from decoder: Decoder) throws {
         let c = try decoder.container(keyedBy: CodingKeys.self)
-        self.type     = try c.decode(String.self, forKey: .type)
+        self.type = try c.decode(String.self, forKey: .type)
+
+        guard Block.modelledTypes.contains(self.type) else {
+            let body = try JSONValue(from: decoder).objectDropping(["type"])
+            self.raw      = body
+            // Convenience accessor only — the encoded block_id comes from `raw`.
+            if case let .string(id) = body["block_id"] { self.block_id = id }
+            return
+        }
+
         self.block_id = try c.decodeIfPresent(String.self, forKey: .block_id)
         self.text     = try c.decodeIfPresent(Text.self,   forKey: .text)
         self.fields   = try c.decodeIfPresent([Text].self, forKey: .fields)
@@ -190,20 +214,21 @@ public struct Block: Codable, Equatable, Sendable {
         switch self.type {
         case "rich_text":
             self.richText = try c.decodeIfPresent([RichTextElement].self, forKey: .elements)
-            self.elements = nil
-            self.actions  = nil
         case "actions":
             self.actions  = try c.decodeIfPresent([ActionElement].self, forKey: .elements)
-            self.elements = nil
-            self.richText = nil
         default:
             self.elements = try c.decodeIfPresent([ContextElement].self, forKey: .elements)
-            self.richText = nil
-            self.actions  = nil
         }
     }
 
     public func encode(to encoder: Encoder) throws {
+        if let raw {
+            var fields = raw
+            fields["type"] = .string(type)
+            try JSONValue.object(fields).encode(to: encoder)
+            return
+        }
+
         var c = encoder.container(keyedBy: CodingKeys.self)
         try c.encode(type, forKey: .type)
         try c.encodeIfPresent(block_id, forKey: .block_id)
@@ -267,4 +292,19 @@ public struct Block: Codable, Equatable, Sendable {
         case section
         case context
     }
+
+    /**
+     The block `type` strings this kit decodes into typed fields. Anything
+     else takes the ``raw`` passthrough path. Every new family the kit
+     learns must be added here in the same change that models it — a type
+     listed here but not dispatched decodes to an empty block.
+     */
+    internal static let modelledTypes: Set<String> = [
+        BlockType.divider.rawValue,
+        BlockType.header.rawValue,
+        BlockType.section.rawValue,
+        BlockType.context.rawValue,
+        "rich_text",
+        "actions",
+    ]
 }
