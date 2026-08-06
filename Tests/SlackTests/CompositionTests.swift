@@ -667,3 +667,76 @@ struct CardTests {
         #expect(try decoder.decode(Block.self, from: encoder.encode(block)) == block)
     }
 }
+
+@Suite("Carousel and container")
+struct NestingBlockTests {
+
+    @Test("a carousel's cards ride the elements wire key")
+    func carouselRoundTrips() throws {
+        let block = Block.carousel([
+            .init(title: "Tute A", body: "Thursday", actions: [.button(.init(text: .init(plain: "Book Out"), action_id: "a"))]),
+            .init(title: "Tute B", body: "Friday"),
+        ])
+        let encoded = try encodeToObject(block)
+        #expect(encoded["type"] as? String == "carousel")
+        #expect(encoded["cards"] == nil)
+        let elements = try #require(encoded["elements"] as? [[String: Any]])
+        #expect(elements.count == 2)
+        #expect((elements[0]["title"] as? [String: Any])?["text"] as? String == "Tute A")
+        #expect(try decoder.decode(Block.self, from: encoder.encode(block)) == block)
+    }
+
+    @Test("a carousel decodes from wire JSON with card elements")
+    func carouselDecodes() throws {
+        let json = """
+        { "type": "carousel", "block_id": "car1",
+          "elements": [ { "type": "card", "title": { "type": "mrkdwn", "text": "Hi" } } ] }
+        """
+        let block = try decoder.decode(Block.self, from: Data(json.utf8))
+        #expect(block.cards?.count == 1)
+        #expect(block.cards?.first?.title?.text == "Hi")
+        #expect(try decoder.decode(Block.self, from: encoder.encode(block)) == block)
+    }
+
+    @Test("a container nests child blocks under child_blocks with its header fields")
+    func containerRoundTrips() throws {
+        let block = Block.container(.init(
+            title: "This week",
+            subtitle: "LEAP",
+            blocks: [
+                .header("Thursday"),
+                .section("Chemistry tute at 4pm"),
+                .actions([.button(.init(text: .init(plain: "Book Out"), action_id: "b"))]),
+            ],
+            width: .wide,
+            isCollapsible: true,
+            defaultCollapsed: false
+        ))
+        let encoded = try encodeToObject(block)
+        #expect(encoded["type"] as? String == "container")
+        #expect(encoded["title"] as? String == "This week")
+        #expect(encoded["width"] as? String == "wide")
+        let children = try #require(encoded["child_blocks"] as? [[String: Any]])
+        #expect(children.count == 3)
+        #expect(children[2]["type"] as? String == "actions")
+        #expect(try decoder.decode(Block.self, from: encoder.encode(block)) == block)
+    }
+
+    @Test("a container with a rich_text_title round-trips")
+    func containerRichTitle() throws {
+        let json = """
+        { "type": "container",
+          "rich_text_title": { "type": "rich_text",
+            "elements": [ { "type": "rich_text_section",
+                            "elements": [ { "type": "text", "text": "Week 3" } ] } ] },
+          "child_blocks": [ { "type": "divider" } ] }
+        """
+        let block = try decoder.decode(Block.self, from: Data(json.utf8))
+        #expect(block.container?.rich_text_title?.count == 1)
+        #expect(block.container?.child_blocks.count == 1)
+        // The envelope comes back on the wire.
+        let encoded = try encodeToObject(block)
+        #expect(((encoded["rich_text_title"] as? [String: Any])?["type"]) as? String == "rich_text")
+        #expect(try decoder.decode(Block.self, from: encoder.encode(block)) == block)
+    }
+}

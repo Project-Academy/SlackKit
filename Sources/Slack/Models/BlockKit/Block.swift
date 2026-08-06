@@ -114,6 +114,11 @@ public struct Block: Codable, Equatable, Sendable {
     public var dataTable: DataTable?
     /// Payload of a `card` block — set only when `type == "card"`.
     public var card: Card?
+    /// Cards of a `carousel` block — set only when `type == "carousel"`.
+    /// They ride the shared `elements` wire key (there is no `cards` key).
+    public var cards: [Card]?
+    /// Payload of a `container` block — set only when `type == "container"`.
+    public var container: Container?
 
     /**
      Used only for Header Blocks: heading level 1–4 (H1–H4).
@@ -302,6 +307,10 @@ public struct Block: Codable, Equatable, Sendable {
             self.richText = try c.decodeIfPresent([RichTextElement].self, forKey: .elements)
         case "actions":
             self.actions  = try c.decodeIfPresent([ActionElement].self, forKey: .elements)
+        case "carousel":
+            self.cards    = try c.decodeIfPresent([Card].self, forKey: .elements)
+        case "container":
+            self.container = try Container(from: decoder)
         case "input":
             self.input    = try Input(from: decoder)
         case "image":
@@ -347,6 +356,7 @@ public struct Block: Codable, Equatable, Sendable {
         try table?.encode(to: encoder)
         try dataTable?.encode(to: encoder)
         try card?.encode(to: encoder)
+        try container?.encode(to: encoder)
 
         var c = encoder.container(keyedBy: CodingKeys.self)
         try c.encode(type, forKey: .type)
@@ -362,6 +372,8 @@ public struct Block: Codable, Equatable, Sendable {
             try c.encodeIfPresent(richText, forKey: .elements)
         case "actions":
             try c.encodeIfPresent(actions,  forKey: .elements)
+        case "carousel":
+            try c.encodeIfPresent(cards,    forKey: .elements)
         default:
             try c.encodeIfPresent(elements, forKey: .elements)
         }
@@ -438,5 +450,7 @@ public struct Block: Codable, Equatable, Sendable {
         "table",
         "data_table",
         "card",
+        "carousel",
+        "container",
     ]
 }
