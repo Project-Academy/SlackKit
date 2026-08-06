@@ -49,6 +49,8 @@ extension Block {
         case urlTextInput(URLTextInput)
         case numberInput(NumberInput)
         case fileInput(FileInput)
+        case feedbackButtons(FeedbackButtons)
+        case iconButton(IconButton)
         case unknown(type: String, raw: [String: JSONValue])
 
         private enum CodingKeys: String, CodingKey {
@@ -84,6 +86,8 @@ extension Block {
             case "url_text_input":             self = .urlTextInput(try URLTextInput(from: decoder))
             case "number_input":               self = .numberInput(try NumberInput(from: decoder))
             case "file_input":                 self = .fileInput(try FileInput(from: decoder))
+            case "feedback_buttons":           self = .feedbackButtons(try FeedbackButtons(from: decoder))
+            case "icon_button":                self = .iconButton(try IconButton(from: decoder))
             default:
                 let raw = try JSONValue(from: decoder)
                 self = .unknown(type: type, raw: raw.objectDropping(["type"]))
@@ -126,6 +130,8 @@ extension Block {
             case .urlTextInput:             return "url_text_input"
             case .numberInput:              return "number_input"
             case .fileInput:                return "file_input"
+            case .feedbackButtons:          return "feedback_buttons"
+            case .iconButton:               return "icon_button"
             case .unknown:                  return nil
             }
         }
@@ -158,6 +164,8 @@ extension Block {
             case let .urlTextInput(v):             return v
             case let .numberInput(v):              return v
             case let .fileInput(v):                return v
+            case let .feedbackButtons(v):          return v
+            case let .iconButton(v):               return v
             case .unknown:                         return nil
             }
         }

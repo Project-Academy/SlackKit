@@ -119,6 +119,10 @@ public struct Block: Codable, Equatable, Sendable {
     public var cards: [Card]?
     /// Payload of a `container` block — set only when `type == "container"`.
     public var container: Container?
+    /// Payload of a `plan` block — set only when `type == "plan"`.
+    public var plan: Plan?
+    /// Payload of a `task_card` block — set only when `type == "task_card"`.
+    public var taskCard: TaskCard?
 
     /**
      Used only for Header Blocks: heading level 1–4 (H1–H4).
@@ -305,7 +309,7 @@ public struct Block: Codable, Equatable, Sendable {
         switch self.type {
         case "rich_text":
             self.richText = try c.decodeIfPresent([RichTextElement].self, forKey: .elements)
-        case "actions":
+        case "actions", "context_actions":
             self.actions  = try c.decodeIfPresent([ActionElement].self, forKey: .elements)
         case "carousel":
             self.cards    = try c.decodeIfPresent([Card].self, forKey: .elements)
@@ -331,6 +335,10 @@ public struct Block: Codable, Equatable, Sendable {
             self.dataTable = try DataTable(from: decoder)
         case "card":
             self.card     = try Card(from: decoder)
+        case "plan":
+            self.plan     = try Plan(from: decoder)
+        case "task_card":
+            self.taskCard = try TaskCard(from: decoder)
         default:
             self.elements = try c.decodeIfPresent([ContextElement].self, forKey: .elements)
         }
@@ -357,6 +365,8 @@ public struct Block: Codable, Equatable, Sendable {
         try dataTable?.encode(to: encoder)
         try card?.encode(to: encoder)
         try container?.encode(to: encoder)
+        try plan?.encode(to: encoder)
+        try taskCard?.encode(to: encoder)
 
         var c = encoder.container(keyedBy: CodingKeys.self)
         try c.encode(type, forKey: .type)
@@ -370,7 +380,7 @@ public struct Block: Codable, Equatable, Sendable {
         switch type {
         case "rich_text":
             try c.encodeIfPresent(richText, forKey: .elements)
-        case "actions":
+        case "actions", "context_actions":
             try c.encodeIfPresent(actions,  forKey: .elements)
         case "carousel":
             try c.encodeIfPresent(cards,    forKey: .elements)
@@ -452,5 +462,8 @@ public struct Block: Codable, Equatable, Sendable {
         "card",
         "carousel",
         "container",
+        "plan",
+        "task_card",
+        "context_actions",
     ]
 }

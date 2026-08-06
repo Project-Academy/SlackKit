@@ -740,3 +740,69 @@ struct NestingBlockTests {
         #expect(try decoder.decode(Block.self, from: encoder.encode(block)) == block)
     }
 }
+
+@Suite("Plan, task card and context actions")
+struct PlanBlockTests {
+
+    @Test("a task_card round-trips id, status, rich text and sources")
+    func taskCardRoundTrips() throws {
+        let json = """
+        {
+          "type": "task_card",
+          "task_id": "t-42",
+          "title": "Mark the Chemistry essays",
+          "status": "in_progress",
+          "details": { "type": "rich_text",
+            "elements": [ { "type": "rich_text_section",
+                            "elements": [ { "type": "text", "text": "12 remaining" } ] } ] },
+          "sources": [ { "type": "url", "url": "https://example.com/essays", "text": "Essay queue" } ]
+        }
+        """
+        let block = try decoder.decode(Block.self, from: Data(json.utf8))
+        let card = try #require(block.taskCard)
+        #expect(card.task_id == "t-42")
+        #expect(card.status == .inProgress)
+        #expect(card.details?.count == 1)
+        #expect(card.sources?.first?.text == "Essay queue")
+
+        let encoded = try encodeToObject(block)
+        #expect(((encoded["details"] as? [String: Any])?["type"]) as? String == "rich_text")
+        #expect(((encoded["sources"] as? [[String: Any]])?.first?["type"]) as? String == "url")
+        #expect(try decoder.decode(Block.self, from: encoder.encode(block)) == block)
+    }
+
+    @Test("a plan block nests task_card blocks with a bare-string title")
+    func planRoundTrips() throws {
+        let block = Block.plan(title: "Marking sweep", tasks: [
+            .taskCard(.init(taskID: "t-1", title: "Chemistry", status: .complete)),
+            .taskCard(.init(taskID: "t-2", title: "Physics", status: .pending)),
+        ])
+        let encoded = try encodeToObject(block)
+        #expect(encoded["type"] as? String == "plan")
+        #expect(encoded["title"] as? String == "Marking sweep")
+        let tasks = try #require(encoded["tasks"] as? [[String: Any]])
+        #expect(tasks.count == 2)
+        #expect(tasks[0]["type"] as? String == "task_card")
+        #expect(try decoder.decode(Block.self, from: encoder.encode(block)) == block)
+    }
+
+    @Test("context_actions carries feedback and icon buttons on the elements key")
+    func contextActionsRoundTrips() throws {
+        let block = Block.contextActions([
+            .feedbackButtons(.init(
+                positive: .init("Helpful", value: "yes"),
+                negative: .init("Not helpful", value: "no"),
+                action_id: "fb"
+            )),
+            .iconButton(.init(text: "Delete", action_id: "del", value: "msg_1")),
+        ])
+        let encoded = try encodeToObject(block)
+        #expect(encoded["type"] as? String == "context_actions")
+        let elements = try #require(encoded["elements"] as? [[String: Any]])
+        #expect(elements[0]["type"] as? String == "feedback_buttons")
+        #expect((elements[0]["positive_button"] as? [String: Any])?["value"] as? String == "yes")
+        #expect(elements[1]["type"] as? String == "icon_button")
+        #expect(elements[1]["icon"] as? String == "trash")
+        #expect(try decoder.decode(Block.self, from: encoder.encode(block)) == block)
+    }
+}

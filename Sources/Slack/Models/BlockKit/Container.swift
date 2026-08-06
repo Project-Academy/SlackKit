@@ -13,6 +13,19 @@ import Foundation
 extension Block {
 
     /**
+     The wire form of a nested rich-text value: a full `rich_text` block
+     (`{"type": "rich_text", "elements": […]}`). Used wherever a family
+     stores rich-text *content* but the wire carries the block envelope —
+     `container.rich_text_title`, `task_card.details` / `.output` — because
+     storing a `Block` inside a family that `Block` stores inline would
+     recurse a value type.
+     */
+    internal struct RichTextEnvelope: Codable {
+        var type: String
+        var elements: [RichTextElement]
+    }
+
+    /**
      Payload of a `container` block — wraps up to 10 child blocks with a
      header, optional icon, sizing and collapsibility. One of `title` /
      `rich_text_title` is required by Slack (`rich_text_title` wins when
@@ -83,12 +96,6 @@ extension Block {
 
         private enum CodingKeys: String, CodingKey {
             case title, rich_text_title, subtitle, child_blocks, width, icon, is_collapsible, default_collapsed, has_header_divider
-        }
-
-        /// The wire form of `rich_text_title`: a full `rich_text` block.
-        private struct RichTextEnvelope: Codable {
-            var type: String
-            var elements: [RichTextElement]
         }
 
         public init(from decoder: Decoder) throws {
