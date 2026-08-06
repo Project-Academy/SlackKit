@@ -371,3 +371,132 @@ extension Block {
         }
     }
 }
+
+extension Block {
+
+    //--------------------------------------
+    // MARK: - INPUT-ONLY ELEMENTS -
+    //--------------------------------------
+    /// `plain_text_input` — single- or multi-line free text. Input blocks only.
+    public struct PlainTextInput: Codable, Equatable, Sendable {
+        public var action_id: String?
+        public var initial_value: String?
+        public var multiline: Bool?
+        /// 0–3000.
+        public var min_length: Int?
+        /// 1–3000.
+        public var max_length: Int?
+        public var dispatch_action_config: DispatchActionConfig?
+        public var focus_on_load: Bool?
+        public var placeholder: Text?
+
+        public init(placeholder: String? = nil, initialValue: String? = nil, multiline: Bool? = nil, minLength: Int? = nil, maxLength: Int? = nil, action_id: String? = nil, dispatchActionConfig: DispatchActionConfig? = nil, focusOnLoad: Bool? = nil) {
+            self.action_id = action_id
+            self.initial_value = initialValue
+            self.multiline = multiline
+            self.min_length = minLength
+            self.max_length = maxLength
+            self.dispatch_action_config = dispatchActionConfig
+            self.focus_on_load = focusOnLoad
+            self.placeholder = placeholder.map { Text(plain: $0) }
+        }
+    }
+
+    /// `rich_text_input` — formatted text entry. `initial_value` is a whole
+    /// `rich_text` block. `action_id` is required by Slack for this element.
+    public struct RichTextInput: Codable, Equatable, Sendable {
+        public var action_id: String?
+        public var initial_value: Block?
+        public var dispatch_action_config: DispatchActionConfig?
+        public var focus_on_load: Bool?
+        public var placeholder: Text?
+        /// 1–100; initial height.
+        public var min_lines: Int?
+        /// 1–100; default 8.
+        public var max_lines: Int?
+
+        public init(action_id: String, placeholder: String? = nil, initialValue: Block? = nil, dispatchActionConfig: DispatchActionConfig? = nil, focusOnLoad: Bool? = nil, minLines: Int? = nil, maxLines: Int? = nil) {
+            self.action_id = action_id
+            self.initial_value = initialValue
+            self.dispatch_action_config = dispatchActionConfig
+            self.focus_on_load = focusOnLoad
+            self.placeholder = placeholder.map { Text(plain: $0) }
+            self.min_lines = minLines
+            self.max_lines = maxLines
+        }
+    }
+
+    /// `email_text_input`. Input blocks only.
+    public struct EmailTextInput: Codable, Equatable, Sendable {
+        public var action_id: String?
+        public var initial_value: String?
+        public var dispatch_action_config: DispatchActionConfig?
+        public var focus_on_load: Bool?
+        public var placeholder: Text?
+
+        public init(placeholder: String? = nil, initialValue: String? = nil, action_id: String? = nil, dispatchActionConfig: DispatchActionConfig? = nil, focusOnLoad: Bool? = nil) {
+            self.action_id = action_id
+            self.initial_value = initialValue
+            self.dispatch_action_config = dispatchActionConfig
+            self.focus_on_load = focusOnLoad
+            self.placeholder = placeholder.map { Text(plain: $0) }
+        }
+    }
+
+    /// `url_text_input`. Input blocks only.
+    public struct URLTextInput: Codable, Equatable, Sendable {
+        public var action_id: String?
+        public var initial_value: String?
+        public var dispatch_action_config: DispatchActionConfig?
+        public var focus_on_load: Bool?
+        public var placeholder: Text?
+
+        public init(placeholder: String? = nil, initialValue: String? = nil, action_id: String? = nil, dispatchActionConfig: DispatchActionConfig? = nil, focusOnLoad: Bool? = nil) {
+            self.action_id = action_id
+            self.initial_value = initialValue
+            self.dispatch_action_config = dispatchActionConfig
+            self.focus_on_load = focusOnLoad
+            self.placeholder = placeholder.map { Text(plain: $0) }
+        }
+    }
+
+    /// `number_input`. `is_decimal_allowed` is required by Slack; min/max are
+    /// strings on the wire.
+    public struct NumberInput: Codable, Equatable, Sendable {
+        public var is_decimal_allowed: Bool
+        public var action_id: String?
+        public var initial_value: String?
+        public var min_value: String?
+        public var max_value: String?
+        public var dispatch_action_config: DispatchActionConfig?
+        public var focus_on_load: Bool?
+        public var placeholder: Text?
+
+        public init(isDecimalAllowed: Bool, placeholder: String? = nil, initialValue: String? = nil, minValue: String? = nil, maxValue: String? = nil, action_id: String? = nil, dispatchActionConfig: DispatchActionConfig? = nil, focusOnLoad: Bool? = nil) {
+            self.is_decimal_allowed = isDecimalAllowed
+            self.action_id = action_id
+            self.initial_value = initialValue
+            self.min_value = minValue
+            self.max_value = maxValue
+            self.dispatch_action_config = dispatchActionConfig
+            self.focus_on_load = focusOnLoad
+            self.placeholder = placeholder.map { Text(plain: $0) }
+        }
+    }
+
+    /// `file_input`. Needs `files:read`; 100MB per file; incompatible with
+    /// `dispatch_action: true` on the parent input block.
+    public struct FileInput: Codable, Equatable, Sendable {
+        public var action_id: String?
+        /// Allowed extensions; everything accepted if omitted.
+        public var filetypes: [String]?
+        /// 1–10; Slack default 10.
+        public var max_files: Int?
+
+        public init(filetypes: [String]? = nil, maxFiles: Int? = nil, action_id: String? = nil) {
+            self.action_id = action_id
+            self.filetypes = filetypes
+            self.max_files = maxFiles
+        }
+    }
+}

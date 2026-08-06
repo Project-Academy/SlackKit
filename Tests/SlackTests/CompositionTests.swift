@@ -264,3 +264,33 @@ struct ElementWave1Tests {
         #expect(try decoder.decode(Block.self, from: encoder.encode(block)) == block)
     }
 }
+
+@Suite("Element wave 2 — inputs")
+struct ElementWave2Tests {
+
+    @Test("each input element type decodes to its case and round-trips", arguments: [
+        ("plain_text_input", #"{"type": "plain_text_input", "multiline": true, "min_length": 1, "max_length": 500, "placeholder": {"type": "plain_text", "text": "Notes"}, "dispatch_action_config": {"trigger_actions_on": ["on_enter_pressed"]}}"#),
+        ("rich_text_input", #"{"type": "rich_text_input", "action_id": "r1", "min_lines": 2, "max_lines": 10, "initial_value": {"type": "rich_text", "elements": [{"type": "rich_text_section", "elements": [{"type": "text", "text": "hi"}]}]}}"#),
+        ("email_text_input", #"{"type": "email_text_input", "initial_value": "x@y.z", "focus_on_load": true}"#),
+        ("url_text_input", #"{"type": "url_text_input", "placeholder": {"type": "plain_text", "text": "Link"}}"#),
+        ("number_input", #"{"type": "number_input", "is_decimal_allowed": false, "min_value": "1", "max_value": "10", "initial_value": "5"}"#),
+        ("file_input", #"{"type": "file_input", "filetypes": ["pdf", "png"], "max_files": 3, "action_id": "f1"}"#),
+    ])
+    func inputElementRoundTrips(type: String, fixture: String) throws {
+        let element = try decoder.decode(Block.ActionElement.self, from: Data(fixture.utf8))
+
+        if case let .unknown(unknownType, _) = element {
+            Issue.record("\(type) decoded as .unknown(\(unknownType))")
+            return
+        }
+
+        let encoded = try encodeToObject(element)
+        #expect(encoded["type"] as? String == type)
+
+        let again = try decoder.decode(Block.ActionElement.self, from: encoder.encode(element))
+        #expect(again == element)
+
+        let original = try #require(JSONSerialization.jsonObject(with: Data(fixture.utf8)) as? [String: Any])
+        #expect(Set(encoded.keys) == Set(original.keys))
+    }
+}

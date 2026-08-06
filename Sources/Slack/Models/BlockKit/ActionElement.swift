@@ -43,6 +43,12 @@ extension Block {
         case checkboxes(Checkboxes)
         case radioButtons(RadioButtons)
         case image(ImageElement)
+        case plainTextInput(PlainTextInput)
+        case richTextInput(RichTextInput)
+        case emailTextInput(EmailTextInput)
+        case urlTextInput(URLTextInput)
+        case numberInput(NumberInput)
+        case fileInput(FileInput)
         case unknown(type: String, raw: [String: JSONValue])
 
         private enum CodingKeys: String, CodingKey {
@@ -72,6 +78,12 @@ extension Block {
             case "checkboxes":                 self = .checkboxes(try Checkboxes(from: decoder))
             case "radio_buttons":              self = .radioButtons(try RadioButtons(from: decoder))
             case "image":                      self = .image(try ImageElement(from: decoder))
+            case "plain_text_input":           self = .plainTextInput(try PlainTextInput(from: decoder))
+            case "rich_text_input":            self = .richTextInput(try RichTextInput(from: decoder))
+            case "email_text_input":           self = .emailTextInput(try EmailTextInput(from: decoder))
+            case "url_text_input":             self = .urlTextInput(try URLTextInput(from: decoder))
+            case "number_input":               self = .numberInput(try NumberInput(from: decoder))
+            case "file_input":                 self = .fileInput(try FileInput(from: decoder))
             default:
                 let raw = try JSONValue(from: decoder)
                 self = .unknown(type: type, raw: raw.objectDropping(["type"]))
@@ -108,6 +120,12 @@ extension Block {
             case .checkboxes:               return "checkboxes"
             case .radioButtons:             return "radio_buttons"
             case .image:                    return "image"
+            case .plainTextInput:           return "plain_text_input"
+            case .richTextInput:            return "rich_text_input"
+            case .emailTextInput:           return "email_text_input"
+            case .urlTextInput:             return "url_text_input"
+            case .numberInput:              return "number_input"
+            case .fileInput:                return "file_input"
             case .unknown:                  return nil
             }
         }
@@ -134,6 +152,12 @@ extension Block {
             case let .checkboxes(v):               return v
             case let .radioButtons(v):             return v
             case let .image(v):                    return v
+            case let .plainTextInput(v):           return v
+            case let .richTextInput(v):            return v
+            case let .emailTextInput(v):           return v
+            case let .urlTextInput(v):             return v
+            case let .numberInput(v):              return v
+            case let .fileInput(v):                return v
             case .unknown:                         return nil
             }
         }
