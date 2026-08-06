@@ -174,6 +174,19 @@ public struct Block: Codable, Equatable, Sendable {
         return .init(type: BlockType.context.rawValue, elements: elements)
     }
 
+    /**
+     Holds up to 25 interactive elements — buttons, selects, pickers,
+     checkboxes, radio buttons, overflow menus.
+
+     ## Available in Surfaces
+     - Modals
+     - Messages
+     - Home tabs
+     */
+    public static func actions(_ elements: [ActionElement]) -> Block {
+        .init(type: "actions", actions: elements)
+    }
+
     //--------------------------------------
     // MARK: - CODABLE -
     //--------------------------------------

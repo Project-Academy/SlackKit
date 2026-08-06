@@ -26,6 +26,23 @@ extension Block {
 
         case button(Button)
         case workflowButton(WorkflowButton)
+        case staticSelect(StaticSelect)
+        case externalSelect(ExternalSelect)
+        case usersSelect(UsersSelect)
+        case conversationsSelect(ConversationsSelect)
+        case channelsSelect(ChannelsSelect)
+        case multiStaticSelect(MultiStaticSelect)
+        case multiExternalSelect(MultiExternalSelect)
+        case multiUsersSelect(MultiUsersSelect)
+        case multiConversationsSelect(MultiConversationsSelect)
+        case multiChannelsSelect(MultiChannelsSelect)
+        case overflow(Overflow)
+        case datePicker(DatePicker)
+        case timePicker(TimePicker)
+        case datetimePicker(DatetimePicker)
+        case checkboxes(Checkboxes)
+        case radioButtons(RadioButtons)
+        case image(ImageElement)
         case unknown(type: String, raw: [String: JSONValue])
 
         private enum CodingKeys: String, CodingKey {
@@ -36,10 +53,25 @@ extension Block {
             let c = try decoder.container(keyedBy: CodingKeys.self)
             let type = try c.decode(String.self, forKey: .type)
             switch type {
-            case "button":
-                self = .button(try Button(from: decoder))
-            case "workflow_button":
-                self = .workflowButton(try WorkflowButton(from: decoder))
+            case "button":                     self = .button(try Button(from: decoder))
+            case "workflow_button":            self = .workflowButton(try WorkflowButton(from: decoder))
+            case "static_select":              self = .staticSelect(try StaticSelect(from: decoder))
+            case "external_select":            self = .externalSelect(try ExternalSelect(from: decoder))
+            case "users_select":               self = .usersSelect(try UsersSelect(from: decoder))
+            case "conversations_select":       self = .conversationsSelect(try ConversationsSelect(from: decoder))
+            case "channels_select":            self = .channelsSelect(try ChannelsSelect(from: decoder))
+            case "multi_static_select":        self = .multiStaticSelect(try MultiStaticSelect(from: decoder))
+            case "multi_external_select":      self = .multiExternalSelect(try MultiExternalSelect(from: decoder))
+            case "multi_users_select":         self = .multiUsersSelect(try MultiUsersSelect(from: decoder))
+            case "multi_conversations_select": self = .multiConversationsSelect(try MultiConversationsSelect(from: decoder))
+            case "multi_channels_select":      self = .multiChannelsSelect(try MultiChannelsSelect(from: decoder))
+            case "overflow":                   self = .overflow(try Overflow(from: decoder))
+            case "datepicker":                 self = .datePicker(try DatePicker(from: decoder))
+            case "timepicker":                 self = .timePicker(try TimePicker(from: decoder))
+            case "datetimepicker":             self = .datetimePicker(try DatetimePicker(from: decoder))
+            case "checkboxes":                 self = .checkboxes(try Checkboxes(from: decoder))
+            case "radio_buttons":              self = .radioButtons(try RadioButtons(from: decoder))
+            case "image":                      self = .image(try ImageElement(from: decoder))
             default:
                 let raw = try JSONValue(from: decoder)
                 self = .unknown(type: type, raw: raw.objectDropping(["type"]))
@@ -54,23 +86,69 @@ extension Block {
          to `Button` and so emitted a button element with **no `type`** — output
          Slack rejects, and which this kit could not even decode back.
          */
-        public func encode(to encoder: Encoder) throws {
+        /// The wire `type` string for each modelled case.
+        private var typeString: String? {
             switch self {
-            case let .button(button):
-                try button.encode(to: encoder)
-                var c = encoder.container(keyedBy: CodingKeys.self)
-                try c.encode("button", forKey: .type)
+            case .button:                   return "button"
+            case .workflowButton:           return "workflow_button"
+            case .staticSelect:             return "static_select"
+            case .externalSelect:           return "external_select"
+            case .usersSelect:              return "users_select"
+            case .conversationsSelect:      return "conversations_select"
+            case .channelsSelect:           return "channels_select"
+            case .multiStaticSelect:        return "multi_static_select"
+            case .multiExternalSelect:      return "multi_external_select"
+            case .multiUsersSelect:         return "multi_users_select"
+            case .multiConversationsSelect: return "multi_conversations_select"
+            case .multiChannelsSelect:      return "multi_channels_select"
+            case .overflow:                 return "overflow"
+            case .datePicker:               return "datepicker"
+            case .timePicker:               return "timepicker"
+            case .datetimePicker:           return "datetimepicker"
+            case .checkboxes:               return "checkboxes"
+            case .radioButtons:             return "radio_buttons"
+            case .image:                    return "image"
+            case .unknown:                  return nil
+            }
+        }
 
-            case let .workflowButton(button):
-                try button.encode(to: encoder)
-                var c = encoder.container(keyedBy: CodingKeys.self)
-                try c.encode("workflow_button", forKey: .type)
+        /// The payload each modelled case carries, type-erased for encoding.
+        private var payload: (any Encodable & Sendable)? {
+            switch self {
+            case let .button(v):                   return v
+            case let .workflowButton(v):           return v
+            case let .staticSelect(v):             return v
+            case let .externalSelect(v):           return v
+            case let .usersSelect(v):              return v
+            case let .conversationsSelect(v):      return v
+            case let .channelsSelect(v):           return v
+            case let .multiStaticSelect(v):        return v
+            case let .multiExternalSelect(v):      return v
+            case let .multiUsersSelect(v):         return v
+            case let .multiConversationsSelect(v): return v
+            case let .multiChannelsSelect(v):      return v
+            case let .overflow(v):                 return v
+            case let .datePicker(v):               return v
+            case let .timePicker(v):               return v
+            case let .datetimePicker(v):           return v
+            case let .checkboxes(v):               return v
+            case let .radioButtons(v):             return v
+            case let .image(v):                    return v
+            case .unknown:                         return nil
+            }
+        }
 
-            case let .unknown(type, raw):
+        public func encode(to encoder: Encoder) throws {
+            if case let .unknown(type, raw) = self {
                 var fields = raw
                 fields["type"] = .string(type)
                 try JSONValue.object(fields).encode(to: encoder)
+                return
             }
+            guard let payload, let typeString else { return }
+            try payload.encode(to: encoder)
+            var c = encoder.container(keyedBy: CodingKeys.self)
+            try c.encode(typeString, forKey: .type)
         }
     }
 

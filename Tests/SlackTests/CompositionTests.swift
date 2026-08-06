@@ -197,3 +197,70 @@ struct ButtonTests {
         #expect(try decoder.decode(Block.self, from: encoder.encode(block)) == block)
     }
 }
+
+@Suite("Element wave 1")
+struct ElementWave1Tests {
+
+    /// Spec-derived fixture per element type: decoding must land in the
+    /// matching typed case (not `.unknown`), and the round trip must be
+    /// value-equal with the `type` back on the wire.
+    @Test("each element type decodes to its case and round-trips", arguments: [
+        ("static_select", #"{"type": "static_select", "placeholder": {"type": "plain_text", "text": "Pick"}, "options": [{"text": {"type": "plain_text", "text": "A"}, "value": "a"}], "initial_option": {"text": {"type": "plain_text", "text": "A"}, "value": "a"}, "action_id": "s1"}"#),
+        ("external_select", #"{"type": "external_select", "min_query_length": 2, "action_id": "s2"}"#),
+        ("users_select", #"{"type": "users_select", "initial_user": "U123", "focus_on_load": true}"#),
+        ("conversations_select", #"{"type": "conversations_select", "default_to_current_conversation": true, "filter": {"include": ["im", "public"], "exclude_bot_users": true}}"#),
+        ("channels_select", #"{"type": "channels_select", "initial_channel": "C123", "response_url_enabled": true}"#),
+        ("multi_static_select", #"{"type": "multi_static_select", "option_groups": [{"label": {"type": "plain_text", "text": "G"}, "options": [{"text": {"type": "plain_text", "text": "A"}, "value": "a"}]}], "max_selected_items": 3}"#),
+        ("multi_external_select", #"{"type": "multi_external_select", "min_query_length": 1, "initial_options": [{"text": {"type": "plain_text", "text": "A"}, "value": "a"}]}"#),
+        ("multi_users_select", #"{"type": "multi_users_select", "initial_users": ["U1", "U2"], "max_selected_items": 5}"#),
+        ("multi_conversations_select", #"{"type": "multi_conversations_select", "initial_conversations": ["C1"], "filter": {"exclude_external_shared_channels": true}}"#),
+        ("multi_channels_select", #"{"type": "multi_channels_select", "initial_channels": ["C1", "C2"]}"#),
+        ("overflow", #"{"type": "overflow", "options": [{"text": {"type": "plain_text", "text": "Edit"}, "value": "e", "url": "https://example.com"}], "action_id": "o1"}"#),
+        ("datepicker", #"{"type": "datepicker", "initial_date": "2026-08-06", "placeholder": {"type": "plain_text", "text": "Date"}}"#),
+        ("timepicker", #"{"type": "timepicker", "initial_time": "13:30", "timezone": "Australia/Sydney"}"#),
+        ("datetimepicker", #"{"type": "datetimepicker", "initial_date_time": 1754452800}"#),
+        ("checkboxes", #"{"type": "checkboxes", "options": [{"text": {"type": "mrkdwn", "text": "*A*"}, "value": "a", "description": {"type": "plain_text", "text": "d"}}], "initial_options": [{"text": {"type": "mrkdwn", "text": "*A*"}, "value": "a", "description": {"type": "plain_text", "text": "d"}}]}"#),
+        ("radio_buttons", #"{"type": "radio_buttons", "options": [{"text": {"type": "plain_text", "text": "A"}, "value": "a"}], "initial_option": {"text": {"type": "plain_text", "text": "A"}, "value": "a"}}"#),
+        ("image", #"{"type": "image", "image_url": "https://example.com/x.png", "alt_text": "an image"}"#),
+    ])
+    func elementRoundTrips(type: String, fixture: String) throws {
+        let element = try decoder.decode(Block.ActionElement.self, from: Data(fixture.utf8))
+
+        if case let .unknown(unknownType, _) = element {
+            Issue.record("\(type) decoded as .unknown(\(unknownType))")
+            return
+        }
+
+        let encoded = try encodeToObject(element)
+        #expect(encoded["type"] as? String == type)
+
+        // Value-equal round trip through the single pipeline.
+        let again = try decoder.decode(Block.ActionElement.self, from: encoder.encode(element))
+        #expect(again == element)
+
+        // And the original fixture's keys all survive the round trip.
+        let original = try #require(JSONSerialization.jsonObject(with: Data(fixture.utf8)) as? [String: Any])
+        #expect(Set(encoded.keys) == Set(original.keys))
+    }
+
+    @Test("a slack_file image element keeps its file reference")
+    func slackFileImageElement() throws {
+        let element = Block.ActionElement.image(.init(slackFile: .init(id: "F42"), altText: "chart"))
+        let encoded = try encodeToObject(element)
+        #expect((encoded["slack_file"] as? [String: Any])?["id"] as? String == "F42")
+        #expect(encoded["image_url"] == nil)
+        #expect(try decoder.decode(Block.ActionElement.self, from: encoder.encode(element)) == element)
+    }
+
+    @Test("the actions builder produces a well-formed block")
+    func actionsBuilder() throws {
+        let block = Block.actions([
+            .button(.init(text: .init(plain: "Book Out"), action_id: "book_out", style: .danger)),
+            .usersSelect(.init(placeholder: "Who?")),
+        ])
+        let encoded = try encodeToObject(block)
+        #expect(encoded["type"] as? String == "actions")
+        #expect((encoded["elements"] as? [[String: Any]])?.count == 2)
+        #expect(try decoder.decode(Block.self, from: encoder.encode(block)) == block)
+    }
+}
