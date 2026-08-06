@@ -25,6 +25,7 @@ extension Block {
     public enum ActionElement: Codable, Equatable, Sendable {
 
         case button(Button)
+        case workflowButton(WorkflowButton)
         case unknown(type: String, raw: [String: JSONValue])
 
         private enum CodingKeys: String, CodingKey {
@@ -37,6 +38,8 @@ extension Block {
             switch type {
             case "button":
                 self = .button(try Button(from: decoder))
+            case "workflow_button":
+                self = .workflowButton(try WorkflowButton(from: decoder))
             default:
                 let raw = try JSONValue(from: decoder)
                 self = .unknown(type: type, raw: raw.objectDropping(["type"]))
@@ -58,6 +61,11 @@ extension Block {
                 var c = encoder.container(keyedBy: CodingKeys.self)
                 try c.encode("button", forKey: .type)
 
+            case let .workflowButton(button):
+                try button.encode(to: encoder)
+                var c = encoder.container(keyedBy: CodingKeys.self)
+                try c.encode("workflow_button", forKey: .type)
+
             case let .unknown(type, raw):
                 var fields = raw
                 fields["type"] = .string(type)
@@ -76,20 +84,78 @@ extension Block {
      */
     public struct Button: Codable, Equatable, Sendable {
 
+        /// `plain_text` only; max 75 characters (Slack may truncate around 30).
         public var text: Text?
+        /// Link-button target, max 3000 characters. The interaction payload
+        /// is still sent and must still be acknowledged.
         public var url: String?
         public var action_id: String?
+        /// Arbitrary payload returned in the interaction, max 2000 characters.
         public var value: String?
+        /// `primary` (one per set) or `danger`; omit for the default look.
+        public var style: Style?
+        /// Confirmation dialog shown before the interaction payload is sent.
+        public var confirm: Confirm?
+        /// Read by screen readers instead of `text`; max 75 characters.
+        public var accessibility_label: String?
 
-        public init(text: Text? = nil, url: String? = nil, action_id: String? = nil, value: String? = nil) {
+        public init(
+            text: Text? = nil,
+            url: String? = nil,
+            action_id: String? = nil,
+            value: String? = nil,
+            style: Style? = nil,
+            confirm: Confirm? = nil,
+            accessibility_label: String? = nil
+        ) {
             self.text = text
             self.url = url
             self.action_id = action_id
             self.value = value
+            self.style = style
+            self.confirm = confirm
+            self.accessibility_label = accessibility_label
         }
 
         private enum CodingKeys: String, CodingKey {
-            case text, url, action_id, value
+            case text, url, action_id, value, style, confirm, accessibility_label
+        }
+    }
+
+    /**
+     `workflow_button` element — runs a workflow via its link ``Block/Trigger``
+     when clicked. Unlike ``Block/Button``, `action_id` and the workflow are
+     required by Slack.
+
+     The `type` discriminator is owned by ``Block/ActionElement``, as for
+     every element payload.
+     */
+    public struct WorkflowButton: Codable, Equatable, Sendable {
+
+        /// `plain_text` only; max 75 characters (Slack may truncate around 30).
+        public var text: Text?
+        public var workflow: Workflow
+        public var action_id: String?
+        public var style: Style?
+        /// Read by screen readers instead of `text`; max 75 characters.
+        public var accessibility_label: String?
+
+        public init(
+            text: Text? = nil,
+            workflow: Workflow,
+            action_id: String? = nil,
+            style: Style? = nil,
+            accessibility_label: String? = nil
+        ) {
+            self.text = text
+            self.workflow = workflow
+            self.action_id = action_id
+            self.style = style
+            self.accessibility_label = accessibility_label
+        }
+
+        private enum CodingKeys: String, CodingKey {
+            case text, workflow, action_id, style, accessibility_label
         }
     }
 }

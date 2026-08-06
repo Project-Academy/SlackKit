@@ -137,3 +137,63 @@ struct CompositionTests {
         #expect(future.name == "hologram")
     }
 }
+
+@Suite("Buttons")
+struct ButtonTests {
+
+    /// Full-fat decode: every documented button field survives the round trip.
+    @Test("a button with style, confirm and accessibility_label round-trips")
+    func fullFatButtonRoundTrips() throws {
+        let json = """
+        {
+          "type": "actions",
+          "elements": [
+            { "type": "button",
+              "text": { "type": "plain_text", "text": "Book Out" },
+              "action_id": "book_out",
+              "value": "tute_42",
+              "style": "danger",
+              "accessibility_label": "Book out of this tutorial",
+              "confirm": {
+                "title": { "type": "plain_text", "text": "Book out?" },
+                "text": { "type": "mrkdwn", "text": "You'll lose your spot." },
+                "confirm": { "type": "plain_text", "text": "Book Out" },
+                "deny": { "type": "plain_text", "text": "Stay" }
+              } }
+          ]
+        }
+        """
+        let block = try decoder.decode(Block.self, from: Data(json.utf8))
+        guard case let .button(button)? = block.actions?.first else {
+            Issue.record("expected a button"); return
+        }
+        #expect(button.style == .danger)
+        #expect(button.confirm?.title.text == "Book out?")
+        #expect(button.accessibility_label == "Book out of this tutorial")
+
+        let encoded = try encodeToObject(block)
+        let element = try #require((encoded["elements"] as? [[String: Any]])?.first)
+        #expect(element["type"] as? String == "button")
+        #expect(element["style"] as? String == "danger")
+        #expect((element["confirm"] as? [String: Any])?["deny"] != nil)
+        #expect(try decoder.decode(Block.self, from: encoder.encode(block)) == block)
+    }
+
+    @Test("a workflow_button writes its type and carries its trigger")
+    func workflowButtonRoundTrips() throws {
+        let element = Block.ActionElement.workflowButton(.init(
+            text: Block.Text(plain: "Run report"),
+            workflow: .init(trigger: .init(url: "https://slack.com/shortcuts/Ft1/x")),
+            action_id: "run_report"
+        ))
+        let block = Block(type: "actions", actions: [element])
+
+        let encoded = try encodeToObject(block)
+        let wire = try #require((encoded["elements"] as? [[String: Any]])?.first)
+        #expect(wire["type"] as? String == "workflow_button")
+        let workflow = try #require(wire["workflow"] as? [String: Any])
+        #expect((workflow["trigger"] as? [String: Any])?["url"] as? String == "https://slack.com/shortcuts/Ft1/x")
+
+        #expect(try decoder.decode(Block.self, from: encoder.encode(block)) == block)
+    }
+}
