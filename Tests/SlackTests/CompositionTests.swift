@@ -595,3 +595,75 @@ struct TableTests {
         #expect(try decoder.decode(Block.self, from: encoder.encode(block)) == block)
     }
 }
+
+@Suite("Cards")
+struct CardTests {
+
+    @Test("a full card round-trips: hero image, slack icon, texts and buttons")
+    func fullCardRoundTrips() throws {
+        let block = Block.card(.init(
+            title: "*Upcoming tute*",
+            subtitle: "Thursday 4pm",
+            body: "Chemistry with your leader",
+            subtext: "Room 2",
+            heroImage: .init(url: "https://example.com/hero.png", altText: "Tute"),
+            slackIcon: .init("calendar"),
+            actions: [
+                .button(.init(text: .init(plain: "Book Out"), action_id: "book_out", value: "tute_42", style: .danger)),
+            ]
+        ))
+        let encoded = try encodeToObject(block)
+        #expect(encoded["type"] as? String == "card")
+        #expect((encoded["title"] as? [String: Any])?["type"] as? String == "mrkdwn")
+        #expect((encoded["hero_image"] as? [String: Any])?["alt_text"] as? String == "Tute")
+        #expect((encoded["slack_icon"] as? [String: Any])?["name"] as? String == "calendar")
+        let actions = try #require(encoded["actions"] as? [[String: Any]])
+        #expect(actions.count == 1)
+        #expect(actions[0]["type"] as? String == "button")
+        #expect(try decoder.decode(Block.self, from: encoder.encode(block)) == block)
+    }
+
+    @Test("Slack's documented card example decodes with typed fields")
+    func slackExampleDecodes() throws {
+        let json = """
+        {
+          "type": "card",
+          "title": { "type": "mrkdwn", "text": "Project kickoff" },
+          "subtitle": { "type": "plain_text", "text": "Starts Monday" },
+          "body": { "type": "mrkdwn", "text": "All hands on deck" },
+          "icon": { "type": "image", "image_url": "https://example.com/i.png", "alt_text": "icon" },
+          "actions": [
+            { "type": "button", "text": { "type": "plain_text", "text": "Open" }, "action_id": "a" }
+          ]
+        }
+        """
+        let block = try decoder.decode(Block.self, from: Data(json.utf8))
+        let card = try #require(block.card)
+        #expect(card.title?.text == "Project kickoff")
+        #expect(card.icon?.alt_text == "icon")
+        guard case .button = card.actions?.first else {
+            Issue.record("expected button in card actions"); return
+        }
+        #expect(try decoder.decode(Block.self, from: encoder.encode(block)) == block)
+    }
+
+    /// The exact block Slack echoed back from a real chat.postMessage on
+    /// 2026-08-06 (ok: true) — the empirical resolution of the doc-vs-example
+    /// mismatch on card text fields and `actions`.
+    @Test("the card block Slack actually returned round-trips")
+    func slackProductionEchoRoundTrips() throws {
+        let json = """
+        {"body":{"text":"Chemistry with your leader","type":"mrkdwn","verbatim":false},"type":"card","title":{"text":"*Upcoming tute*","type":"mrkdwn","verbatim":false},"actions":[{"text":{"text":"Book Out","type":"plain_text","emoji":true},"type":"button","style":"danger","value":"tute_42","action_id":"book_out"}],"subtext":{"text":"Room 2","type":"mrkdwn","verbatim":false},"block_id":"znazO","subtitle":{"text":"Thursday 4pm","type":"plain_text","emoji":true},"slack_icon":{"name":"calendar","type":"icon"}}
+        """
+        let block = try decoder.decode(Block.self, from: Data(json.utf8))
+        let card = try #require(block.card)
+        #expect(card.title?.text == "*Upcoming tute*")
+        #expect(card.slack_icon?.name == "calendar")
+        #expect(block.block_id == "znazO")
+        guard case let .button(button)? = card.actions?.first else {
+            Issue.record("expected button"); return
+        }
+        #expect(button.style == .danger)
+        #expect(try decoder.decode(Block.self, from: encoder.encode(block)) == block)
+    }
+}

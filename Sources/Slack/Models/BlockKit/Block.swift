@@ -112,6 +112,8 @@ public struct Block: Codable, Equatable, Sendable {
     public var table: Table?
     /// Payload of a `data_table` block — set only when `type == "data_table"`.
     public var dataTable: DataTable?
+    /// Payload of a `card` block — set only when `type == "card"`.
+    public var card: Card?
 
     /**
      Used only for Header Blocks: heading level 1–4 (H1–H4).
@@ -318,6 +320,8 @@ public struct Block: Codable, Equatable, Sendable {
             self.table    = try Table(from: decoder)
         case "data_table":
             self.dataTable = try DataTable(from: decoder)
+        case "card":
+            self.card     = try Card(from: decoder)
         default:
             self.elements = try c.decodeIfPresent([ContextElement].self, forKey: .elements)
         }
@@ -342,6 +346,7 @@ public struct Block: Codable, Equatable, Sendable {
         try dataVisualization?.encode(to: encoder)
         try table?.encode(to: encoder)
         try dataTable?.encode(to: encoder)
+        try card?.encode(to: encoder)
 
         var c = encoder.container(keyedBy: CodingKeys.self)
         try c.encode(type, forKey: .type)
@@ -432,5 +437,6 @@ public struct Block: Codable, Equatable, Sendable {
         "data_visualization",
         "table",
         "data_table",
+        "card",
     ]
 }
