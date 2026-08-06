@@ -806,3 +806,46 @@ struct PlanBlockTests {
         #expect(try decoder.decode(Block.self, from: encoder.encode(block)) == block)
     }
 }
+
+@Suite("plainText coverage")
+struct PlainTextCoverageTests {
+
+    @Test("every block type with readable content yields non-empty plainText")
+    func allReadableBlocksRender() throws {
+        let axis = Block.Chart.AxisConfig(categories: ["Mon"])
+        let blocks: [(String, Block)] = [
+            ("header", .header("Results")),
+            ("section", .section("Chemistry tute at 4pm")),
+            ("context", .context(["Posted by StaffBOT"])),
+            ("actions", .actions([.button(.init(text: .init(plain: "Book Out")))])),
+            ("input", .input(label: "Email", element: .emailTextInput(.init()), hint: "School address")),
+            ("image", .image(url: "https://x.com/i.png", altText: "A chart")),
+            ("video", .video(.init(title: "Recording", videoURL: "https://x.com/v", thumbnailURL: "https://x.com/t.png", altText: "vid", description: "Week 3"))),
+            ("markdown", .markdown("**Info**")),
+            ("alert", .alert("Heads up", level: .info)),
+            ("data_visualization", .dataVisualization(title: "Marks", chart: .pie(segments: [.init("A", value: 1)]))),
+            ("table", .table(rows: [[.rawText("Course")], [.rawNumber(value: 1, text: "1")]])),
+            ("data_table", .dataTable(caption: "Marks by course", rows: [[.rawText("Course")]])),
+            ("card", .card(.init(title: "Upcoming tute", body: "Thursday"))),
+            ("carousel", .carousel([.init(title: "Tute A")])),
+            ("container", .container(.init(title: "This week", blocks: [.section("Chem")]))),
+            ("plan", .plan(title: "Marking sweep", tasks: [.taskCard(.init(taskID: "t", title: "Chemistry"))])),
+            ("task_card", .taskCard(.init(taskID: "t", title: "Chemistry"))),
+        ]
+        for (name, block) in blocks {
+            #expect(!block.plainText.isEmpty, "plainText empty for \(name)")
+        }
+    }
+
+    @Test("nested content reaches the flat text")
+    func nestedContentRenders() throws {
+        let container = Block.container(.init(title: "Week", blocks: [.section("Chemistry at 4pm")]))
+        #expect(container.plainText.contains("Chemistry at 4pm"))
+
+        let plan = Block.plan(title: "Sweep", tasks: [.taskCard(.init(taskID: "t", title: "Mark Physics"))])
+        #expect(plan.plainText.contains("Mark Physics"))
+
+        let table = Block.table(rows: [[.richText([.section([.text("cell words", style: nil)])])]])
+        #expect(table.plainText.contains("cell words"))
+    }
+}

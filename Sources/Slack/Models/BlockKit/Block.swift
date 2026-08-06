@@ -416,15 +416,60 @@ public struct Block: Codable, Equatable, Sendable {
             parts.append(richText.map(\.plainText).joined(separator: "\n"))
         }
         if let actions, !actions.isEmpty {
-            let buttons: [String] = actions.compactMap { element in
-                guard case let .button(button) = element else { return nil }
-                let label = button.text?.text ?? "Button"
-                if let url = button.url { return "\(label) → \(url)" }
-                return label
+            let labels = actions.compactMap(\.plainText)
+            if !labels.isEmpty { parts.append(labels.joined(separator: "\n")) }
+        }
+        if let markdown { parts.append(markdown.text) }
+        if let alert { parts.append(alert.text.text) }
+        if let image {
+            parts.append(image.title?.text ?? image.alt_text)
+        }
+        if let video {
+            parts.append(video.title.text)
+            if let description = video.description { parts.append(description.text) }
+        }
+        if let input {
+            parts.append(input.label.text)
+            if let hint = input.hint { parts.append(hint.text) }
+        }
+        if let dataVisualization { parts.append(dataVisualization.title) }
+        if let table { parts.append(Block.plainText(of: table.rows)) }
+        if let dataTable {
+            parts.append(dataTable.caption)
+            parts.append(Block.plainText(of: dataTable.rows))
+        }
+        if let card { parts.append(card.plainText) }
+        if let cards, !cards.isEmpty {
+            parts.append(cards.map(\.plainText).filter { !$0.isEmpty }.joined(separator: "\n"))
+        }
+        if let container {
+            if let title = container.title { parts.append(title) }
+            if let richTitle = container.rich_text_title {
+                parts.append(richTitle.map(\.plainText).joined(separator: "\n"))
             }
-            if !buttons.isEmpty { parts.append(buttons.joined(separator: "\n")) }
+            if let subtitle = container.subtitle { parts.append(subtitle) }
+            parts.append(container.child_blocks.map(\.plainText).filter { !$0.isEmpty }.joined(separator: "\n"))
+        }
+        if let plan {
+            parts.append(plan.title)
+            if let tasks = plan.tasks {
+                parts.append(tasks.map(\.plainText).filter { !$0.isEmpty }.joined(separator: "\n"))
+            }
+        }
+        if let taskCard {
+            parts.append(taskCard.title)
+            if let details = taskCard.details {
+                parts.append(details.map(\.plainText).joined(separator: "\n"))
+            }
         }
         return parts.filter { !$0.isEmpty }.joined(separator: "\n")
+    }
+
+    /// Flat text of a cell grid: rows become lines, cells join with two spaces.
+    private static func plainText(of rows: [[Cell]]) -> String {
+        rows.map { row in
+            row.map(\.plainText).filter { !$0.isEmpty }.joined(separator: "  ")
+        }.filter { !$0.isEmpty }.joined(separator: "\n")
     }
 
     //--------------------------------------
@@ -466,4 +511,72 @@ public struct Block: Codable, Equatable, Sendable {
         "task_card",
         "context_actions",
     ]
+}
+
+extension Block.Cell {
+    /// Flat-text rendering: display strings for raw cells, recursed content
+    /// for rich text, nothing for unknown kinds.
+    public var plainText: String {
+        switch self {
+        case let .rawText(text):        return text
+        case let .rawNumber(_, text):   return text
+        case let .richText(elements):   return elements.map(\.plainText).joined(separator: " ")
+        case .unknown:                  return ""
+        }
+    }
+}
+
+extension Block.Card {
+    /// Flat-text rendering: the card's text fields, then its button labels.
+    public var plainText: String {
+        var parts = [title?.text, subtitle?.text, body?.text, subtext?.text].compactMap(\.self)
+        if let actions {
+            parts.append(contentsOf: actions.compactMap(\.plainText))
+        }
+        return parts.filter { !$0.isEmpty }.joined(separator: "\n")
+    }
+}
+
+extension Block.ActionElement {
+    /**
+     Flat-text rendering of an interactive element — the parts of it a
+     reader can be given as words: button labels (with URL for link
+     buttons), feedback/icon button labels, placeholders and image alt
+     text. Elements with nothing readable return `nil`.
+     */
+    public var plainText: String? {
+        switch self {
+        case let .button(button):
+            let label = button.text?.text ?? "Button"
+            if let url = button.url { return "\(label) → \(url)" }
+            return label
+        case let .workflowButton(button):
+            return button.text?.text ?? "Button"
+        case let .feedbackButtons(buttons):
+            return "\(buttons.positive_button.text.text) / \(buttons.negative_button.text.text)"
+        case let .iconButton(button):
+            return button.text.text
+        case let .image(image):
+            return image.alt_text.isEmpty ? nil : image.alt_text
+        case let .staticSelect(v):             return v.placeholder?.text
+        case let .externalSelect(v):           return v.placeholder?.text
+        case let .usersSelect(v):              return v.placeholder?.text
+        case let .conversationsSelect(v):      return v.placeholder?.text
+        case let .channelsSelect(v):           return v.placeholder?.text
+        case let .multiStaticSelect(v):        return v.placeholder?.text
+        case let .multiExternalSelect(v):      return v.placeholder?.text
+        case let .multiUsersSelect(v):         return v.placeholder?.text
+        case let .multiConversationsSelect(v): return v.placeholder?.text
+        case let .multiChannelsSelect(v):      return v.placeholder?.text
+        case let .datePicker(v):               return v.placeholder?.text
+        case let .timePicker(v):               return v.placeholder?.text
+        case let .plainTextInput(v):           return v.placeholder?.text
+        case let .richTextInput(v):            return v.placeholder?.text
+        case let .emailTextInput(v):           return v.placeholder?.text
+        case let .urlTextInput(v):             return v.placeholder?.text
+        case let .numberInput(v):              return v.placeholder?.text
+        case .overflow, .datetimePicker, .checkboxes, .radioButtons, .fileInput, .unknown:
+            return nil
+        }
+    }
 }
