@@ -384,3 +384,100 @@ struct InputBlockTests {
         #expect(Set(encoded.keys) == ["type", "text"])
     }
 }
+
+@Suite("Display blocks")
+struct DisplayBlockTests {
+
+    @Test("an image block round-trips with url, alt_text and title")
+    func imageBlockRoundTrips() throws {
+        let block = Block.image(url: "https://example.com/x.png", altText: "a chart", title: "Results")
+        let encoded = try encodeToObject(block)
+        #expect(encoded["type"] as? String == "image")
+        #expect(encoded["image_url"] as? String == "https://example.com/x.png")
+        #expect(encoded["alt_text"] as? String == "a chart")
+        #expect((encoded["title"] as? [String: Any])?["type"] as? String == "plain_text")
+        #expect(try decoder.decode(Block.self, from: encoder.encode(block)) == block)
+    }
+
+    @Test("a video block round-trips its full field set")
+    func videoBlockRoundTrips() throws {
+        let block = Block.video(.init(
+            title: "Tute recording",
+            videoURL: "https://example.com/embed/1",
+            thumbnailURL: "https://example.com/thumb.png",
+            altText: "Recording of the tute",
+            titleURL: "https://example.com/watch/1",
+            description: "Week 3",
+            authorName: "Project Academy",
+            providerName: "Example"
+        ))
+        let encoded = try encodeToObject(block)
+        #expect(encoded["type"] as? String == "video")
+        #expect(encoded["video_url"] as? String == "https://example.com/embed/1")
+        #expect((encoded["description"] as? [String: Any])?["text"] as? String == "Week 3")
+        #expect(try decoder.decode(Block.self, from: encoder.encode(block)) == block)
+    }
+
+    @Test("a file block decodes from the wire shape Slack sends")
+    func fileBlockDecodes() throws {
+        let block = try decoder.decode(Block.self, from: Data(#"{"type": "file", "external_id": "ABCD1", "source": "remote", "block_id": "f1"}"#.utf8))
+        #expect(block.file?.external_id == "ABCD1")
+        #expect(block.file?.source == "remote")
+
+        let encoded = try encodeToObject(block)
+        #expect(encoded["external_id"] as? String == "ABCD1")
+        #expect(encoded["block_id"] as? String == "f1")
+        #expect(try decoder.decode(Block.self, from: encoder.encode(block)) == block)
+    }
+
+    @Test("a markdown block's text is a raw string on the wire")
+    func markdownBlockRoundTrips() throws {
+        let block = Block.markdown("**Lots of information here!!**")
+        let encoded = try encodeToObject(block)
+        #expect(encoded["type"] as? String == "markdown")
+        #expect(encoded["text"] as? String == "**Lots of information here!!**")
+
+        let decoded = try decoder.decode(Block.self, from: Data(#"{"type": "markdown", "text": "*Hi* there"}"#.utf8))
+        #expect(decoded.markdown?.text == "*Hi* there")
+        #expect(decoded.text == nil)
+        #expect(try decoder.decode(Block.self, from: encoder.encode(block)) == block)
+    }
+
+    @Test("an alert block matches Slack's example shape: text object + string level")
+    func alertBlockRoundTrips() throws {
+        let block = Block.alert("Heads up — LEAP week", level: .warning)
+        let encoded = try encodeToObject(block)
+        #expect(encoded["type"] as? String == "alert")
+        #expect(encoded["level"] as? String == "warning")
+        #expect((encoded["text"] as? [String: Any])?["type"] as? String == "mrkdwn")
+
+        // Slack's own documented example decodes.
+        let decoded = try decoder.decode(Block.self, from: Data(#"{"type": "alert", "text": {"type": "mrkdwn", "text": "hi", "verbatim": false}, "level": "info"}"#.utf8))
+        #expect(decoded.alert?.level == .info)
+        #expect(try decoder.decode(Block.self, from: encoder.encode(block)) == block)
+    }
+
+    @Test("a header with a level round-trips; plain headers are unchanged")
+    func headerLevel() throws {
+        let levelled = Block.header("Results", level: 2)
+        let encoded = try encodeToObject(levelled)
+        #expect(encoded["level"] as? Int == 2)
+        #expect(try decoder.decode(Block.self, from: encoder.encode(levelled)) == levelled)
+
+        let plain = try encodeToObject(Block.header("Results"))
+        #expect(plain["level"] == nil)
+    }
+
+    @Test("the mixed context builder carries images and text — the Backpack shape")
+    func mixedContextBuilder() throws {
+        let block = Block.context([
+            .image(url: "https://example.com/leader.png", altText: "Leader"),
+            .text(.init("*Alex* is hosting")),
+        ])
+        let encoded = try encodeToObject(block)
+        let elements = try #require(encoded["elements"] as? [[String: Any]])
+        #expect(elements[0]["type"] as? String == "image")
+        #expect(elements[1]["type"] as? String == "mrkdwn")
+        #expect(try decoder.decode(Block.self, from: encoder.encode(block)) == block)
+    }
+}

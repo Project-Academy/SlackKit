@@ -94,6 +94,23 @@ public struct Block: Codable, Equatable, Sendable {
      */
     public var input: Input?
 
+    /// Payload of an `image` block — set only when `type == "image"`.
+    public var image: ImageBlock?
+    /// Payload of a `video` block — set only when `type == "video"`.
+    public var video: Video?
+    /// Payload of a `file` block — set only when `type == "file"`.
+    public var file: FileBlock?
+    /// Payload of a `markdown` block — set only when `type == "markdown"`.
+    /// Its wire `text` is a raw String, so it never uses the shared `text`.
+    public var markdown: Markdown?
+    /// Payload of an `alert` block — set only when `type == "alert"`.
+    public var alert: Alert?
+
+    /**
+     Used only for Header Blocks: heading level 1–4 (H1–H4).
+     */
+    public var level: Int?
+
     /**
      The complete body (minus `type`) of a block whose `type` this kit
      doesn't model — set only for unmodelled types, and re-encoded verbatim.
@@ -156,9 +173,11 @@ public struct Block: Codable, Equatable, Sendable {
 
      - note: Maximum length for the text in this field is 150 characters.
      */
-    public static func header(_ text: String, showEmojis: Bool = true) -> Block {
+    public static func header(_ text: String, showEmojis: Bool = true, level: Int? = nil) -> Block {
         let text = Text(plain: text, emoji: showEmojis)
-        return .init(type: BlockType.header.rawValue, text: text)
+        var block = Block(type: BlockType.header.rawValue, text: text)
+        block.level = level
+        return block
     }
     /**
      Displays text, possibly alongside elements.
@@ -192,6 +211,21 @@ public struct Block: Codable, Equatable, Sendable {
     public static func context(_ items: [String]) -> Block {
         let elements = items.map { ContextElement.text(Text($0)) }
         return .init(type: BlockType.context.rawValue, elements: elements)
+    }
+
+    /**
+     Context strip over mixed elements — text and images together
+     (e.g. an avatar beside a caption).
+
+     ## Available in Surfaces
+     - Modals
+     - Messages
+     - Home tabs
+
+     - note: Maximum number of elements is 10.
+     */
+    public static func context(_ elements: [ContextElement]) -> Block {
+        .init(type: BlockType.context.rawValue, elements: elements)
     }
 
     /**
@@ -241,10 +275,18 @@ public struct Block: Codable, Equatable, Sendable {
         }
 
         self.block_id  = try c.decodeIfPresent(String.self, forKey: .block_id)
-        self.text      = try c.decodeIfPresent(Text.self,   forKey: .text)
+        // `markdown` (raw String) and `alert` (family-owned text object)
+        // own the `text` key themselves; the shared decode must not touch it
+        // there or the same key populates two properties.
+        if self.type != "markdown", self.type != "alert" {
+            self.text  = try c.decodeIfPresent(Text.self,   forKey: .text)
+        }
         self.fields    = try c.decodeIfPresent([Text].self, forKey: .fields)
         self.accessory = try c.decodeIfPresent(ActionElement.self, forKey: .accessory)
         self.expand    = try c.decodeIfPresent(Bool.self, forKey: .expand)
+        if self.type == BlockType.header.rawValue {
+            self.level = try c.decodeIfPresent(Int.self, forKey: .level)
+        }
 
         switch self.type {
         case "rich_text":
@@ -253,6 +295,16 @@ public struct Block: Codable, Equatable, Sendable {
             self.actions  = try c.decodeIfPresent([ActionElement].self, forKey: .elements)
         case "input":
             self.input    = try Input(from: decoder)
+        case "image":
+            self.image    = try ImageBlock(from: decoder)
+        case "video":
+            self.video    = try Video(from: decoder)
+        case "file":
+            self.file     = try FileBlock(from: decoder)
+        case "markdown":
+            self.markdown = try Markdown(from: decoder)
+        case "alert":
+            self.alert    = try Alert(from: decoder)
         default:
             self.elements = try c.decodeIfPresent([ContextElement].self, forKey: .elements)
         }
@@ -269,6 +321,11 @@ public struct Block: Codable, Equatable, Sendable {
         // Flattened families write their fields into the same encoder first;
         // `Block` still owns `type` and `block_id`.
         try input?.encode(to: encoder)
+        try image?.encode(to: encoder)
+        try video?.encode(to: encoder)
+        try file?.encode(to: encoder)
+        try markdown?.encode(to: encoder)
+        try alert?.encode(to: encoder)
 
         var c = encoder.container(keyedBy: CodingKeys.self)
         try c.encode(type, forKey: .type)
@@ -277,6 +334,7 @@ public struct Block: Codable, Equatable, Sendable {
         try c.encodeIfPresent(fields,    forKey: .fields)
         try c.encodeIfPresent(accessory, forKey: .accessory)
         try c.encodeIfPresent(expand,    forKey: .expand)
+        try c.encodeIfPresent(level,     forKey: .level)
 
         switch type {
         case "rich_text":
@@ -289,7 +347,7 @@ public struct Block: Codable, Equatable, Sendable {
     }
 
     private enum CodingKeys: String, CodingKey {
-        case type, block_id, text, fields, elements, accessory, expand
+        case type, block_id, text, fields, elements, accessory, expand, level
     }
 
     //--------------------------------------
@@ -350,5 +408,10 @@ public struct Block: Codable, Equatable, Sendable {
         "rich_text",
         "actions",
         "input",
+        "image",
+        "video",
+        "file",
+        "markdown",
+        "alert",
     ]
 }
