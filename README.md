@@ -42,14 +42,45 @@ This is resolved at the call site, not injected invisibly during request buildin
 // A basic message can be constructed from just a String:
 let message1 = Message("Hello, world")
 
-// Or you can create more complex messages using BlockKit:
+// Or you can create more complex messages using Block Kit:
 let blocks: [Block] = [
     .header("This is a heading"),
     .divider,
-    .section("This is a section")
+    .section("This is a section"),
+    .card(.init(
+        title: "*Upcoming tute*",
+        body: "Chemistry, Thursday 4pm",
+        slackIcon: .init("calendar"),
+        actions: [.button(.init(text: .init(plain: "Book Out"), action_id: "book_out", style: .danger))]
+    )),
+    .dataVisualization(title: "Marks by course", chart: .pie(segments: [
+        .init("Chemistry", value: 60),
+        .init("Physics", value: 40),
+    ])),
 ]
 let message2 = Message("Hello, world", blocks: blocks)
 ```
+
+#### Block Kit coverage
+
+Every current Slack block type has a typed model and (where Slack allows posting it) a builder:
+
+| Kind | Blocks |
+|---|---|
+| Text & layout | `header` (with `level`), `section` (with `accessory` + `expand`), `context` (mixed text/images), `divider`, `rich_text`, `markdown` |
+| Media | `image`, `video`, `file` (decode-only — Slack doesn't accept direct posts) |
+| Data | `data_visualization` (pie/bar/area/line), `table`, `data_table` |
+| Cards | `card`, `carousel` |
+| Agent tasks | `plan`, `task_card`, `context_actions` |
+| Interactive | `actions`, `input`, `alert` (modals-only) |
+
+Interactive elements (`Block.ActionElement`) cover buttons (incl. `workflow_button`), every select and multi-select variant, overflow, date/time/datetime pickers, checkboxes, radio buttons, all text/number/email/URL/file inputs, feedback and icon buttons, and the image element — usable in `actions` blocks, section accessories, `input` blocks and `context_actions`. Composition objects (`Confirm`, `Option`, `OptionGroup`, `Filter`, `DispatchActionConfig`, `SlackFile`, `Workflow`/`Trigger`, `SlackIcon`) are all modelled.
+
+Surface availability and Slack's size limits are documented on each builder. Field-level truth lives in `docs/systems/comms/blockkit-spec-2026-08.md` (docs tree).
+
+**Tolerance guarantee:** anything Slack ships that this kit doesn't model — a new block type, element type, chart kind, table cell, style string — decodes without throwing and re-encodes verbatim. Relaying never strips content the kit hasn't learned, at any level of the tree.
+
+Posting a block with interactive elements is one half of the story: the interaction *payload* (a button press) arrives at the Slack app's request URL, which is server-side territory — this kit composes and posts, it does not receive.
 
 `Message` composes; `ReceivedMessage` is what Slack sends back. They're separate types because they're separate jobs — a received message carries `ts`, `user`, `bot_id`, `subtype` and so on, none of which mean anything on the way out. To repost received content, ask for it explicitly:
 
