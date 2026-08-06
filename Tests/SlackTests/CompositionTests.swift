@@ -533,3 +533,65 @@ struct DataVisualizationTests {
         #expect(try decoder.decode(Block.self, from: encoder.encode(block)) == block)
     }
 }
+
+@Suite("Tables")
+struct TableTests {
+
+    @Test("a table round-trips cells and positional column settings with a null gap")
+    func tableRoundTrips() throws {
+        let block = Block.table(
+            rows: [
+                [.rawText("Course"), .rawText("Marks")],
+                [.rawText("Chemistry"), .rawNumber(value: 42, text: "42")],
+            ],
+            columnSettings: [nil, .init(align: .right, isWrapped: false)]
+        )
+        let encoded = try encodeToObject(block)
+        #expect(encoded["type"] as? String == "table")
+        let rows = try #require(encoded["rows"] as? [[[String: Any]]])
+        #expect(rows[1][1]["type"] as? String == "raw_number")
+        #expect(rows[1][1]["value"] as? Double == 42)
+        let settings = try #require(encoded["column_settings"] as? [Any])
+        #expect(settings[0] is NSNull)
+        #expect((settings[1] as? [String: Any])?["align"] as? String == "right")
+        #expect(try decoder.decode(Block.self, from: encoder.encode(block)) == block)
+    }
+
+    @Test("a data_table round-trips caption, paging and rich_text cells")
+    func dataTableRoundTrips() throws {
+        let json = """
+        {
+          "type": "data_table",
+          "caption": "Marks by course",
+          "page_size": 10,
+          "row_header_column_index": 0,
+          "rows": [
+            [ { "type": "raw_text", "text": "Course" }, { "type": "raw_text", "text": "Notes" } ],
+            [ { "type": "raw_text", "text": "Chem" },
+              { "type": "rich_text",
+                "elements": [ { "type": "rich_text_section",
+                                "elements": [ { "type": "text", "text": "solid" } ] } ] } ]
+          ]
+        }
+        """
+        let block = try decoder.decode(Block.self, from: Data(json.utf8))
+        let table = try #require(block.dataTable)
+        #expect(table.caption == "Marks by course")
+        #expect(table.page_size == 10)
+        guard case .richText = table.rows[1][1] else {
+            Issue.record("expected rich_text cell"); return
+        }
+        #expect(try decoder.decode(Block.self, from: encoder.encode(block)) == block)
+    }
+
+    @Test("an unknown cell kind round-trips verbatim")
+    func unknownCellTolerated() throws {
+        let json = #"{"type": "table", "rows": [[{"type": "sparkline", "points": [1]}]]}"#
+        let block = try decoder.decode(Block.self, from: Data(json.utf8))
+        guard case let .unknown(type, _)? = block.table?.rows.first?.first else {
+            Issue.record("expected unknown cell"); return
+        }
+        #expect(type == "sparkline")
+        #expect(try decoder.decode(Block.self, from: encoder.encode(block)) == block)
+    }
+}
