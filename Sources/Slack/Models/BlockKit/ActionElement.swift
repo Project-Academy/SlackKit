@@ -22,7 +22,7 @@ extension Block {
      ``unknown(type:raw:)``, so relaying a message doesn't quietly strip the
      interactive parts this kit hasn't learned yet.
      */
-    public enum ActionElement: Codable, Equatable, Sendable {
+    public indirect enum ActionElement: Codable, Equatable, Sendable {
 
         case button(Button)
         case workflowButton(WorkflowButton)

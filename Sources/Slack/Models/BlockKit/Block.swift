@@ -77,6 +77,24 @@ public struct Block: Codable, Equatable, Sendable {
     public var actions: [ActionElement]?
 
     /**
+     Used only for Section Blocks: one interactive or image element rendered
+     beside the text (see the spec's containment table for which elements
+     Slack accepts here).
+     */
+    public var accessory: ActionElement?
+
+    /**
+     Used only for Section Blocks: always expand the text, suppressing the
+     "see more" fold on long content.
+     */
+    public var expand: Bool?
+
+    /**
+     Payload of an `input` block — set only when `type == "input"`.
+     */
+    public var input: Input?
+
+    /**
      The complete body (minus `type`) of a block whose `type` this kit
      doesn't model — set only for unmodelled types, and re-encoded verbatim.
 
@@ -152,9 +170,11 @@ public struct Block: Codable, Equatable, Sendable {
 
      - note: Maximum length for the text in this field is 3000 characters.
      */
-    public static func section(_ text: String, verbatim: Bool = false) -> Block {
+    public static func section(_ text: String, verbatim: Bool = false, accessory: ActionElement? = nil) -> Block {
         let text = Text(text, verbatim: verbatim)
-        return .init(type: BlockType.section.rawValue, text: text)
+        var block = Block(type: BlockType.section.rawValue, text: text)
+        block.accessory = accessory
+        return block
     }
 
     /**
@@ -220,15 +240,19 @@ public struct Block: Codable, Equatable, Sendable {
             return
         }
 
-        self.block_id = try c.decodeIfPresent(String.self, forKey: .block_id)
-        self.text     = try c.decodeIfPresent(Text.self,   forKey: .text)
-        self.fields   = try c.decodeIfPresent([Text].self, forKey: .fields)
+        self.block_id  = try c.decodeIfPresent(String.self, forKey: .block_id)
+        self.text      = try c.decodeIfPresent(Text.self,   forKey: .text)
+        self.fields    = try c.decodeIfPresent([Text].self, forKey: .fields)
+        self.accessory = try c.decodeIfPresent(ActionElement.self, forKey: .accessory)
+        self.expand    = try c.decodeIfPresent(Bool.self, forKey: .expand)
 
         switch self.type {
         case "rich_text":
             self.richText = try c.decodeIfPresent([RichTextElement].self, forKey: .elements)
         case "actions":
             self.actions  = try c.decodeIfPresent([ActionElement].self, forKey: .elements)
+        case "input":
+            self.input    = try Input(from: decoder)
         default:
             self.elements = try c.decodeIfPresent([ContextElement].self, forKey: .elements)
         }
@@ -242,11 +266,17 @@ public struct Block: Codable, Equatable, Sendable {
             return
         }
 
+        // Flattened families write their fields into the same encoder first;
+        // `Block` still owns `type` and `block_id`.
+        try input?.encode(to: encoder)
+
         var c = encoder.container(keyedBy: CodingKeys.self)
         try c.encode(type, forKey: .type)
-        try c.encodeIfPresent(block_id, forKey: .block_id)
-        try c.encodeIfPresent(text,     forKey: .text)
-        try c.encodeIfPresent(fields,   forKey: .fields)
+        try c.encodeIfPresent(block_id,  forKey: .block_id)
+        try c.encodeIfPresent(text,      forKey: .text)
+        try c.encodeIfPresent(fields,    forKey: .fields)
+        try c.encodeIfPresent(accessory, forKey: .accessory)
+        try c.encodeIfPresent(expand,    forKey: .expand)
 
         switch type {
         case "rich_text":
@@ -259,7 +289,7 @@ public struct Block: Codable, Equatable, Sendable {
     }
 
     private enum CodingKeys: String, CodingKey {
-        case type, block_id, text, fields, elements
+        case type, block_id, text, fields, elements, accessory, expand
     }
 
     //--------------------------------------
@@ -319,5 +349,6 @@ public struct Block: Codable, Equatable, Sendable {
         BlockType.context.rawValue,
         "rich_text",
         "actions",
+        "input",
     ]
 }

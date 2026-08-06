@@ -294,3 +294,93 @@ struct ElementWave2Tests {
         #expect(Set(encoded.keys) == Set(original.keys))
     }
 }
+
+@Suite("Input block and section accessory")
+struct InputBlockTests {
+
+    @Test("an input block round-trips label, element, hint and flags")
+    func inputBlockRoundTrips() throws {
+        let json = """
+        {
+          "type": "input",
+          "block_id": "i1",
+          "label": { "type": "plain_text", "text": "Pick a course" },
+          "element": { "type": "static_select",
+                       "action_id": "course",
+                       "options": [ { "text": { "type": "plain_text", "text": "Chem" }, "value": "c" } ] },
+          "hint": { "type": "plain_text", "text": "One only" },
+          "optional": true,
+          "dispatch_action": false
+        }
+        """
+        let block = try decoder.decode(Block.self, from: Data(json.utf8))
+        let input = try #require(block.input)
+        #expect(input.label.text == "Pick a course")
+        #expect(input.optional == true)
+        guard case .staticSelect = input.element else {
+            Issue.record("expected static_select element"); return
+        }
+
+        let encoded = try encodeToObject(block)
+        #expect(encoded["type"] as? String == "input")
+        #expect(encoded["block_id"] as? String == "i1")
+        #expect((encoded["label"] as? [String: Any])?["text"] as? String == "Pick a course")
+        #expect((encoded["element"] as? [String: Any])?["type"] as? String == "static_select")
+
+        #expect(try decoder.decode(Block.self, from: encoder.encode(block)) == block)
+    }
+
+    @Test("the input builder produces a well-formed block")
+    func inputBuilder() throws {
+        let block = Block.input(
+            label: "Email",
+            element: .emailTextInput(.init(placeholder: "you@example.com")),
+            hint: "School address",
+            optional: true
+        )
+        let encoded = try encodeToObject(block)
+        #expect(encoded["type"] as? String == "input")
+        #expect((encoded["element"] as? [String: Any])?["type"] as? String == "email_text_input")
+        #expect(try decoder.decode(Block.self, from: encoder.encode(block)) == block)
+    }
+
+    @Test("a section with an image accessory round-trips — the Backpack shape")
+    func sectionImageAccessory() throws {
+        let block = Block.section("*Zoom tute* with your leader", accessory: .image(.init(url: "https://example.com/leader.png", altText: "Leader")))
+
+        let encoded = try encodeToObject(block)
+        let accessory = try #require(encoded["accessory"] as? [String: Any])
+        #expect(accessory["type"] as? String == "image")
+        #expect(accessory["alt_text"] as? String == "Leader")
+
+        #expect(try decoder.decode(Block.self, from: encoder.encode(block)) == block)
+    }
+
+    @Test("a section with a button accessory decodes from the wire")
+    func sectionButtonAccessory() throws {
+        let block = try decoder.decode(Block.self, from: Data("""
+        {
+          "type": "section",
+          "text": { "type": "mrkdwn", "text": "Upcoming tute" },
+          "accessory": { "type": "button",
+                         "text": { "type": "plain_text", "text": "Book Out" },
+                         "action_id": "book_out" },
+          "expand": true
+        }
+        """.utf8))
+        guard case .button = block.accessory else {
+            Issue.record("expected button accessory"); return
+        }
+        #expect(block.expand == true)
+        #expect(try decoder.decode(Block.self, from: encoder.encode(block)) == block)
+    }
+
+    @Test("existing plain sections are unaffected")
+    func plainSectionUnchanged() throws {
+        let block = Block.section("hello")
+        let encoded = try encodeToObject(block)
+        #expect(encoded["accessory"] == nil)
+        #expect(encoded["expand"] == nil)
+        #expect(Set(encoded.keys) == ["type", "text"])
+    }
+}
