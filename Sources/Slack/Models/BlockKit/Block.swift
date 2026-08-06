@@ -123,6 +123,10 @@ public struct Block: Codable, Equatable, Sendable {
     public var plan: Plan?
     /// Payload of a `task_card` block — set only when `type == "task_card"`.
     public var taskCard: TaskCard?
+    /// Payload of a `callout` block — set only when `type == "callout"`.
+    public var callout: Callout?
+    /// Payload of a `contact_card` block — set only when `type == "contact_card"`.
+    public var contactCard: ContactCard?
 
     /**
      Used only for Header Blocks: heading level 1–4 (H1–H4).
@@ -284,13 +288,20 @@ public struct Block: Codable, Equatable, Sendable {
         let c = try decoder.container(keyedBy: CodingKeys.self)
         self.type = try c.decode(String.self, forKey: .type)
 
-        guard Block.modelledTypes.contains(self.type) else {
-            let body = try JSONValue(from: decoder).objectDropping(["type"])
-            self.raw      = body
+        // Whatever the type, keep every wire key the typed path below won't
+        // consume, so an upstream addition survives a relay instead of being
+        // silently dropped (found 2026-08-06: image blocks Slack emits carry
+        // image_width/height/bytes/fallback, none of them in its own spec).
+        let body = try JSONValue(from: decoder).objectDropping(["type"])
+        guard let familyKeys = Block.modelledFamilyKeys[self.type] else {
+            self.raw = body
             // Convenience accessor only — the encoded block_id comes from `raw`.
             if case let .string(id) = body["block_id"] { self.block_id = id }
             return
         }
+        let consumed = Block.ownKeys.union(familyKeys)
+        let extras = body.filter { !consumed.contains($0.key) }
+        self.raw = extras.isEmpty ? nil : extras
 
         self.block_id  = try c.decodeIfPresent(String.self, forKey: .block_id)
         // `markdown` (raw String) and `alert` (family-owned text object)
@@ -339,17 +350,27 @@ public struct Block: Codable, Equatable, Sendable {
             self.plan     = try Plan(from: decoder)
         case "task_card":
             self.taskCard = try TaskCard(from: decoder)
+        case "callout":
+            self.callout  = try Callout(from: decoder)
+        case "contact_card":
+            self.contactCard = try ContactCard(from: decoder)
         default:
             self.elements = try c.decodeIfPresent([ContextElement].self, forKey: .elements)
         }
     }
 
     public func encode(to encoder: Encoder) throws {
+        // An unmodelled type is entirely `raw`; a modelled one carries only
+        // its unconsumed extras there, written before the typed fields so
+        // the typed values are authoritative on any overlap.
         if let raw {
             var fields = raw
-            fields["type"] = .string(type)
+            if Block.modelledFamilyKeys[type] == nil {
+                fields["type"] = .string(type)
+                try JSONValue.object(fields).encode(to: encoder)
+                return
+            }
             try JSONValue.object(fields).encode(to: encoder)
-            return
         }
 
         // Flattened families write their fields into the same encoder first;
@@ -367,6 +388,8 @@ public struct Block: Codable, Equatable, Sendable {
         try container?.encode(to: encoder)
         try plan?.encode(to: encoder)
         try taskCard?.encode(to: encoder)
+        try callout?.encode(to: encoder)
+        try contactCard?.encode(to: encoder)
 
         var c = encoder.container(keyedBy: CodingKeys.self)
         try c.encode(type, forKey: .type)
@@ -456,6 +479,9 @@ public struct Block: Codable, Equatable, Sendable {
                 parts.append(tasks.map(\.plainText).filter { !$0.isEmpty }.joined(separator: "\n"))
             }
         }
+        if let callout {
+            parts.append(callout.child_blocks.map(\.plainText).filter { !$0.isEmpty }.joined(separator: "\n"))
+        }
         if let taskCard {
             parts.append(taskCard.title)
             if let details = taskCard.details {
@@ -483,33 +509,46 @@ public struct Block: Codable, Equatable, Sendable {
     }
 
     /**
-     The block `type` strings this kit decodes into typed fields. Anything
-     else takes the ``raw`` passthrough path. Every new family the kit
-     learns must be added here in the same change that models it — a type
-     listed here but not dispatched decodes to an empty block.
+     Every block `type` this kit decodes into typed fields, mapped to the
+     wire keys its payload family consumes. Anything not listed here takes
+     the whole-body ``raw`` passthrough path.
+
+     The key sets are what make unknown-*field* tolerance possible: a key
+     Slack sends that isn't listed for its type is kept in ``raw`` and
+     re-encoded, so a family gaining a field upstream costs us nothing.
+     Every new family must be added here in the same change that models it
+     — a type listed but not dispatched decodes to an empty block, and a
+     family whose keys are under-listed round-trips them twice.
      */
-    internal static let modelledTypes: Set<String> = [
-        BlockType.divider.rawValue,
-        BlockType.header.rawValue,
-        BlockType.section.rawValue,
-        BlockType.context.rawValue,
-        "rich_text",
-        "actions",
-        "input",
-        "image",
-        "video",
-        "file",
-        "markdown",
-        "alert",
-        "data_visualization",
-        "table",
-        "data_table",
-        "card",
-        "carousel",
-        "container",
-        "plan",
-        "task_card",
-        "context_actions",
+    internal static let modelledFamilyKeys: [String: Set<String>] = [
+        BlockType.divider.rawValue: [],
+        BlockType.header.rawValue: [],
+        BlockType.section.rawValue: [],
+        BlockType.context.rawValue: [],
+        "rich_text": [],
+        "actions": [],
+        "context_actions": [],
+        "carousel": [],
+        "input": ["label", "element", "dispatch_action", "hint", "optional"],
+        "image": ["image_url", "slack_file", "alt_text", "title", "image_width", "image_height", "image_bytes", "fallback"],
+        "video": ["alt_text", "title", "thumbnail_url", "video_url", "title_url", "description", "author_name", "provider_icon_url", "provider_name"],
+        "file": ["external_id", "source"],
+        "markdown": ["text"],
+        "alert": ["text", "level"],
+        "data_visualization": ["title", "chart"],
+        "table": ["rows", "column_settings"],
+        "data_table": ["rows", "caption", "page_size", "row_header_column_index"],
+        "card": ["hero_image", "icon", "slack_icon", "title", "subtitle", "body", "subtext", "actions"],
+        "container": ["title", "rich_text_title", "subtitle", "child_blocks", "width", "icon", "is_collapsible", "default_collapsed", "has_header_divider"],
+        "plan": ["title", "tasks"],
+        "task_card": ["task_id", "title", "details", "output", "sources", "status"],
+        "callout": ["background_color", "child_blocks"],
+        "contact_card": ["contact_user_id"],
+    ]
+
+    /// Wire keys `Block` itself decodes, whatever the type.
+    private static let ownKeys: Set<String> = [
+        "type", "block_id", "text", "fields", "elements", "accessory", "expand", "level",
     ]
 }
 
