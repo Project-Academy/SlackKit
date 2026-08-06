@@ -849,3 +849,119 @@ struct PlainTextCoverageTests {
         #expect(table.plainText.contains("cell words"))
     }
 }
+
+@Suite("Callout, contact card, and unknown-field tolerance")
+struct CalloutTests {
+
+    /// Saf's Block Kit Builder payload, verbatim (2026-08-06). Neither
+    /// `callout` nor `contact_card` appears in Slack's block reference —
+    /// this fixture is the specification.
+    private static let builderPayload = """
+    {
+        "type": "callout",
+        "block_id": "bkb_callout_default",
+        "background_color": "green",
+        "child_blocks": [
+            { "type": "rich_text", "block_id": "callout-rt-1",
+              "elements": [ { "type": "rich_text_section",
+                              "elements": [ { "type": "text", "text": "This is a callout block with " },
+                                            { "type": "text", "text": "bold text", "style": { "bold": true } },
+                                            { "type": "text", "text": "." } ] } ] },
+            { "type": "divider", "block_id": "callout-div-1" },
+            { "type": "section", "block_id": "callout-section-1",
+              "text": { "type": "mrkdwn", "text": "*Key details*\\nCallouts support rich text." } },
+            { "type": "image", "block_id": "callout-img-1",
+              "image_url": "https://images.pexels.com/photos/257532/pexels-photo-257532.jpeg",
+              "alt_text": "A sample landscape image",
+              "image_width": 400, "image_height": 300, "image_bytes": 50000,
+              "fallback": "A sample landscape image" },
+            { "type": "contact_card", "block_id": "callout-contact-1",
+              "contact_user_id": "U0123456789" }
+        ]
+    }
+    """
+
+    @Test("the Builder's callout payload decodes to typed values")
+    func calloutDecodes() throws {
+        let block = try decoder.decode(Block.self, from: Data(Self.builderPayload.utf8))
+        let callout = try #require(block.callout)
+        #expect(callout.background_color == .green)
+        #expect(callout.child_blocks.count == 5)
+        #expect(block.block_id == "bkb_callout_default")
+
+        // The image child's undocumented dimensions are typed, not passthrough.
+        let image = try #require(callout.child_blocks[3].image)
+        #expect(image.image_width == 400)
+        #expect(image.image_bytes == 50000)
+        #expect(image.fallback == "A sample landscape image")
+
+        #expect(callout.child_blocks[4].contactCard?.contact_user_id == "U0123456789")
+    }
+
+    @Test("the Builder's callout payload round-trips key-complete at every depth")
+    func calloutRoundTripsDeeply() throws {
+        let original = try #require(
+            JSONSerialization.jsonObject(with: Data(Self.builderPayload.utf8)) as? [String: Any]
+        )
+        let block = try decoder.decode(Block.self, from: Data(Self.builderPayload.utf8))
+        let encoded = try encodeToObject(block)
+
+        #expect(Set(encoded.keys) == Set(original.keys))
+
+        let originalChildren = try #require(original["child_blocks"] as? [[String: Any]])
+        let encodedChildren = try #require(encoded["child_blocks"] as? [[String: Any]])
+        #expect(encodedChildren.count == originalChildren.count)
+        for (i, child) in originalChildren.enumerated() {
+            #expect(Set(encodedChildren[i].keys) == Set(child.keys),
+                    "child \(i) (\(child["type"] as? String ?? "?")) lost or gained keys")
+        }
+
+        #expect(try decoder.decode(Block.self, from: encoder.encode(block)) == block)
+    }
+
+    /// The gap this suite exists for: a field Slack adds to a block type we
+    /// DO model used to be dropped on relay, because only unknown *types*
+    /// were preserved.
+    @Test("an unknown field on a modelled block type survives a relay")
+    func unknownFieldOnKnownTypePreserved() throws {
+        let json = """
+        { "type": "section",
+          "text": { "type": "mrkdwn", "text": "hi" },
+          "some_future_field": { "nested": [1, 2] } }
+        """
+        let block = try decoder.decode(Block.self, from: Data(json.utf8))
+        #expect(block.text?.text == "hi")
+        #expect(block.raw?["some_future_field"] != nil)
+
+        let encoded = try encodeToObject(block)
+        #expect((encoded["some_future_field"] as? [String: Any])?["nested"] as? [Double] == [1, 2])
+        #expect(encoded["text"] != nil)
+        #expect(try decoder.decode(Block.self, from: encoder.encode(block)) == block)
+    }
+
+    @Test("a block with no extras carries no raw payload")
+    func noExtrasMeansNoRaw() throws {
+        let block = try decoder.decode(Block.self, from: Data(#"{"type": "divider"}"#.utf8))
+        #expect(block.raw == nil)
+        #expect(try encodeToObject(block).keys.sorted() == ["type"])
+    }
+
+    @Test("the callout builder composes a well-formed block")
+    func calloutBuilder() throws {
+        let block = Block.callout(backgroundColor: .green, blocks: [
+            .section("*Heads up* — LEAP week starts Monday"),
+            .contactCard(userID: "U0123456789"),
+        ])
+        let encoded = try encodeToObject(block)
+        #expect(encoded["type"] as? String == "callout")
+        #expect(encoded["background_color"] as? String == "green")
+        #expect((encoded["child_blocks"] as? [[String: Any]])?.count == 2)
+        #expect(try decoder.decode(Block.self, from: encoder.encode(block)) == block)
+    }
+
+    @Test("callout content reaches plainText")
+    func calloutPlainText() throws {
+        let block = Block.callout(blocks: [.section("Chemistry at 4pm")])
+        #expect(block.plainText.contains("Chemistry at 4pm"))
+    }
+}

@@ -33,6 +33,15 @@ extension Block {
         /// `plain_text` only; max 2000.
         public var title: Text?
 
+        // Undocumented, but present on image blocks Slack itself emits
+        // (observed in a Block Kit Builder payload, 2026-08-06). Modelled
+        // so they survive a relay as typed values rather than passthrough.
+        public var image_width: Int?
+        public var image_height: Int?
+        public var image_bytes: Int?
+        /// Plain-text stand-in used where the image can't be rendered.
+        public var fallback: String?
+
         public init(url: String, altText: String, title: String? = nil) {
             self.image_url = url
             self.alt_text = altText
@@ -46,6 +55,7 @@ extension Block {
 
         private enum CodingKeys: String, CodingKey {
             case image_url, slack_file, alt_text, title
+            case image_width, image_height, image_bytes, fallback
         }
     }
 

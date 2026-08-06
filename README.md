@@ -70,7 +70,7 @@ Every current Slack block type has a typed model and (where Slack allows posting
 | Text & layout | `header` (with `level`), `section` (with `accessory` + `expand`), `context` (mixed text/images), `divider`, `rich_text`, `markdown` |
 | Media | `image`, `video`, `file` (decode-only — Slack doesn't accept direct posts) |
 | Data | `data_visualization` (pie/bar/area/line), `table`, `data_table` |
-| Cards | `card`, `carousel` |
+| Cards | `card`, `carousel`, `callout`, `contact_card` |
 | Agent tasks | `plan`, `task_card`, `context_actions` |
 | Interactive | `actions`, `input`, `alert` (modals-only) |
 
@@ -78,7 +78,7 @@ Interactive elements (`Block.ActionElement`) cover buttons (incl. `workflow_butt
 
 Surface availability and Slack's size limits are documented on each builder. Field-level truth lives in `docs/systems/comms/blockkit-spec-2026-08.md` (docs tree).
 
-**Tolerance guarantee:** anything Slack ships that this kit doesn't model — a new block type, element type, chart kind, table cell, style string — decodes without throwing and re-encodes verbatim. Relaying never strips content the kit hasn't learned, at any level of the tree.
+**Tolerance guarantee:** anything Slack ships that this kit doesn't model — a new block type, a new *field* on a type we do model, an element type, chart kind, table cell, or style string — decodes without throwing and re-encodes verbatim. Relaying never strips content the kit hasn't learned, at any level of the tree. (`callout` and `contact_card` were found this way: undocumented in Slack's reference, discovered in a live Block Kit Builder payload, and now modelled.)
 
 Posting a block with interactive elements is one half of the story: the interaction *payload* (a button press) arrives at the Slack app's request URL, which is server-side territory — this kit composes and posts, it does not receive.
 
