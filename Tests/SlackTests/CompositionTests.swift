@@ -481,3 +481,55 @@ struct DisplayBlockTests {
         #expect(try decoder.decode(Block.self, from: encoder.encode(block)) == block)
     }
 }
+
+@Suite("Data visualization")
+struct DataVisualizationTests {
+
+    @Test("a pie chart round-trips segments")
+    func pieRoundTrips() throws {
+        let block = Block.dataVisualization(title: "Marks by course", chart: .pie(segments: [
+            .init("Chemistry", value: 60),
+            .init("Physics", value: 40),
+        ]))
+        let encoded = try encodeToObject(block)
+        #expect(encoded["type"] as? String == "data_visualization")
+        #expect(encoded["title"] as? String == "Marks by course")
+        let chart = try #require(encoded["chart"] as? [String: Any])
+        #expect(chart["type"] as? String == "pie")
+        #expect((chart["segments"] as? [[String: Any]])?.count == 2)
+        #expect(try decoder.decode(Block.self, from: encoder.encode(block)) == block)
+    }
+
+    @Test("bar, area and line charts carry series and axis_config", arguments: ["bar", "area", "line"])
+    func seriesChartsRoundTrip(kind: String) throws {
+        let axis = Block.Chart.AxisConfig(categories: ["Mon", "Tue"], xLabel: "Day", yLabel: "Marks")
+        let series = [Block.Chart.Series("2026", data: [.init("Mon", value: 4), .init("Tue", value: -1)])]
+        let chart: Block.Chart = switch kind {
+        case "bar":  .bar(series: series, axis: axis)
+        case "area": .area(series: series, axis: axis)
+        default:     .line(series: series, axis: axis)
+        }
+        let block = Block.dataVisualization(title: "Weekly", chart: chart)
+
+        let encoded = try encodeToObject(block)
+        let wire = try #require(encoded["chart"] as? [String: Any])
+        #expect(wire["type"] as? String == kind)
+        #expect((wire["axis_config"] as? [String: Any])?["categories"] as? [String] == ["Mon", "Tue"])
+        #expect(try decoder.decode(Block.self, from: encoder.encode(block)) == block)
+    }
+
+    @Test("an unknown chart kind round-trips verbatim")
+    func unknownChartTolerated() throws {
+        let json = #"{"type": "data_visualization", "title": "X", "chart": {"type": "scatter", "points": [1, 2]}}"#
+        let block = try decoder.decode(Block.self, from: Data(json.utf8))
+        guard case let .unknown(type, raw)? = block.dataVisualization?.chart else {
+            Issue.record("expected unknown chart"); return
+        }
+        #expect(type == "scatter")
+        #expect(raw["points"] == .array([.number(1), .number(2)]))
+
+        let encoded = try encodeToObject(block)
+        #expect(((encoded["chart"] as? [String: Any])?["type"]) as? String == "scatter")
+        #expect(try decoder.decode(Block.self, from: encoder.encode(block)) == block)
+    }
+}

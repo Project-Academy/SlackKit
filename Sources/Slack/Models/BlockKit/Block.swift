@@ -105,6 +105,9 @@ public struct Block: Codable, Equatable, Sendable {
     public var markdown: Markdown?
     /// Payload of an `alert` block — set only when `type == "alert"`.
     public var alert: Alert?
+    /// Payload of a `data_visualization` block — set only when
+    /// `type == "data_visualization"`.
+    public var dataVisualization: DataVisualization?
 
     /**
      Used only for Header Blocks: heading level 1–4 (H1–H4).
@@ -305,6 +308,8 @@ public struct Block: Codable, Equatable, Sendable {
             self.markdown = try Markdown(from: decoder)
         case "alert":
             self.alert    = try Alert(from: decoder)
+        case "data_visualization":
+            self.dataVisualization = try DataVisualization(from: decoder)
         default:
             self.elements = try c.decodeIfPresent([ContextElement].self, forKey: .elements)
         }
@@ -326,6 +331,7 @@ public struct Block: Codable, Equatable, Sendable {
         try file?.encode(to: encoder)
         try markdown?.encode(to: encoder)
         try alert?.encode(to: encoder)
+        try dataVisualization?.encode(to: encoder)
 
         var c = encoder.container(keyedBy: CodingKeys.self)
         try c.encode(type, forKey: .type)
@@ -413,5 +419,6 @@ public struct Block: Codable, Equatable, Sendable {
         "file",
         "markdown",
         "alert",
+        "data_visualization",
     ]
 }
