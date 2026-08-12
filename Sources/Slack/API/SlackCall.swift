@@ -80,20 +80,27 @@ extension SlackPage {
  connection mid-flight means we don't know — safe only when the operation is
  idempotent (Slack reports `already_reacted` rather than double-reacting).
  */
-package struct RetryPolicy: Sendable {
+public struct RetryPolicy: Sendable {
 
     package let maxAttempts: Int
     package let retriesTransientConnections: Bool
 
     /// Retries only what Slack certainly never processed. Safe for writes.
-    package static let rateLimitOnly = RetryPolicy(maxAttempts: 3, retriesTransientConnections: false)
+    public static let rateLimitOnly = RetryPolicy(maxAttempts: 3, retriesTransientConnections: false)
 
     /// Also retries dropped connections. Only for calls that are idempotent
     /// server-side.
-    package static let idempotent = RetryPolicy(maxAttempts: 3, retriesTransientConnections: true)
+    public static let idempotent = RetryPolicy(maxAttempts: 3, retriesTransientConnections: true)
 
-    /// One shot.
-    package static let none = RetryPolicy(maxAttempts: 1, retriesTransientConnections: false)
+    /**
+     One shot, then the error.
+
+     For a caller that would rather decide for itself: a re-issued write that
+     Slack may already have processed is a duplicate, and a client that shows
+     the outcome to a person often wants "we don't know whether that landed" to
+     be a *state* it can present, not a retry it never sees.
+     */
+    public static let none = RetryPolicy(maxAttempts: 1, retriesTransientConnections: false)
 
     /**
      URLError codes that indicate a transient connection issue rather than a

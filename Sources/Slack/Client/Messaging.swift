@@ -36,13 +36,22 @@ extension Message {
      - Parameter sender: The principal to post as. Falls back to
        ``Slack/Slack/defaultAuthor``; if that is unset too, the call goes out
        unauthenticated and Slack answers `not_authed`.
+     - Parameter retry: How hard to try. Defaults to
+       ``RetryPolicy/rateLimitOnly``, which is what this call has always done.
+       Pass ``RetryPolicy/none`` to own the outcome yourself — `chat.postMessage`
+       has no idempotency key, so any re-issue of a request Slack may already
+       have processed is a second message in the channel.
      */
     @discardableResult
-    public func send(from sender: Author? = nil, to channel: String) async throws -> MessageResponse {
+    public func send(
+        from sender: Author? = nil,
+        to channel: String,
+        retry: RetryPolicy = .rateLimitOnly
+    ) async throws -> MessageResponse {
 
         let author = sender ?? Slack.defaultAuthor
 
-        let response: ChatResponse = try await Chat.postMessage.write {
+        let response: ChatResponse = try await Chat.postMessage.write(retry: retry) {
             $0.from(author)
               .body(PostMessagePayload(self, to: channel, as: author?.persona))
         }
@@ -67,9 +76,13 @@ extension MessageResponse {
        the original content to edit.
      */
     @discardableResult
-    public func update(to newMessage: Message, author: Author? = nil) async throws -> MessageResponse {
+    public func update(
+        to newMessage: Message,
+        author: Author? = nil,
+        retry: RetryPolicy = .rateLimitOnly
+    ) async throws -> MessageResponse {
 
-        let response: ChatResponse = try await Chat.update.write {
+        let response: ChatResponse = try await Chat.update.write(retry: retry) {
             $0.from(author ?? Slack.defaultAuthor)
               .body(UpdateMessagePayload(newMessage, at: ts, in: channel.id))
         }
@@ -83,9 +96,9 @@ extension MessageResponse {
      on. (This used to hand back a `MessageResponse` wrapping the deleted
      message, which read as though you could still chain off it.)
      */
-    public func delete(as author: Author? = nil) async throws {
+    public func delete(as author: Author? = nil, retry: RetryPolicy = .rateLimitOnly) async throws {
 
-        _ = try await Chat.delete.write(SlackEnvelope.self) {
+        _ = try await Chat.delete.write(SlackEnvelope.self, retry: retry) {
             $0.from(author ?? Slack.defaultAuthor)
               .body(DeleteMessagePayload(at: ts, in: channel.id))
         }

@@ -134,16 +134,35 @@ public struct Block: Codable, Equatable, Sendable {
     public var level: Int?
 
     /**
-     The complete body (minus `type`) of a block whose `type` this kit
-     doesn't model — set only for unmodelled types, and re-encoded verbatim.
+     The complete body (minus `type`) of a block this kit couldn't model —
+     re-encoded verbatim.
 
      Element-level `.unknown` cases weren't enough on their own: an
      unmodelled *block* used to have its unrecognised keys silently dropped
      (relaying stripped it to `{"type": …}`, which Slack rejects), and its
      `elements` array was force-decoded as `[ContextElement]`, so a foreign
      shape there threw and took the whole message down.
+
+     On a block that *did* model cleanly this holds only the wire keys the
+     typed path didn't consume, so an upstream field addition also survives.
+     Which of the two it is, is ``isPassthrough``.
      */
     public var raw: [String: JSONValue]?
+
+    /**
+     Whether this block is being carried rather than understood.
+
+     True when ``raw`` holds the entire body: either the `type` isn't modelled
+     at all, or it is but the payload didn't fit the model — a `type` this kit
+     knows, shaped in a way it doesn't. Both cases round-trip byte-for-byte;
+     neither can be read through the typed properties, which will all be `nil`.
+
+     Worth surfacing because the two are indistinguishable otherwise: a
+     `section` that failed to decode and a `section` that genuinely carries no
+     text look identical from the outside, and a renderer needs to tell "show
+     nothing" from "show this as opaque".
+     */
+    public private(set) var isPassthrough: Bool = false
 
     //--------------------------------------
     // MARK: - INIT -
@@ -219,6 +238,37 @@ public struct Block: Codable, Equatable, Sendable {
     }
 
     /**
+     A section laid out as a two-column grid of mrkdwn fields, rather than as
+     a paragraph.
+
+     The shape Slack uses for label/value pairs — it wraps into two columns on
+     a wide display and one on a narrow one, which is why a hand-built table of
+     spaces is not a substitute.
+
+     Every other block family has had a builder since the expansion; this one
+     was only reachable through the memberwise initialiser or by decoding
+     JSON, so the tidiest way to write it was also the least discoverable.
+
+     ## Available in Surfaces
+     - Modals
+     - Messages
+     - Home tabs
+
+     - note: Maximum 10 fields, each up to 2000 characters.
+     */
+    public static func section(fields: [Text], accessory: ActionElement? = nil) -> Block {
+        var block = Block(type: BlockType.section.rawValue, fields: fields)
+        block.accessory = accessory
+        return block
+    }
+
+    /// A fields section from mrkdwn strings, for the common case where none of
+    /// them needs its own text-object options.
+    public static func section(fields: [String], accessory: ActionElement? = nil) -> Block {
+        section(fields: fields.map { Text($0) }, accessory: accessory)
+    }
+
+    /**
      Displays one or more mrkdwn elements rendered as a context strip —
      smaller font, secondary colour. Useful for footers / hints that
      shouldn't compete with the main message body.
@@ -286,19 +336,49 @@ public struct Block: Codable, Equatable, Sendable {
      */
     public init(from decoder: Decoder) throws {
         let c = try decoder.container(keyedBy: CodingKeys.self)
-        self.type = try c.decode(String.self, forKey: .type)
+        let type = try c.decode(String.self, forKey: .type)
 
         // Whatever the type, keep every wire key the typed path below won't
         // consume, so an upstream addition survives a relay instead of being
         // silently dropped (found 2026-08-06: image blocks Slack emits carry
         // image_width/height/bytes/fallback, none of them in its own spec).
         let body = try JSONValue(from: decoder).objectDropping(["type"])
-        guard let familyKeys = Block.modelledFamilyKeys[self.type] else {
-            self.raw = body
-            // Convenience accessor only — the encoded block_id comes from `raw`.
-            if case let .string(id) = body["block_id"] { self.block_id = id }
+
+        guard Block.modelledFamilyKeys[type] != nil else {
+            self.init(carrying: type, body: body)
             return
         }
+
+        do {
+            try self.init(modelling: type, from: decoder, container: c, body: body)
+        } catch {
+            // A `type` we model, shaped in a way we don't. Carrying it whole is
+            // strictly better than throwing: `init(from:)` on `[Block]` fails
+            // the *array*, so before this one image block missing `alt_text`
+            // — which Block Kit Builder emits happily — lost every other block
+            // in the message alongside it.
+            self.init(carrying: type, body: body)
+        }
+    }
+
+    /// Keeps a block wholesale, understood or not. See ``isPassthrough``.
+    private init(carrying type: String, body: [String: JSONValue]) {
+        self.type = type
+        self.raw = body
+        self.isPassthrough = true
+        // Convenience accessor only — the encoded block_id comes from `raw`.
+        if case let .string(id) = body["block_id"] { self.block_id = id }
+    }
+
+    private init(
+        modelling type: String,
+        from decoder: Decoder,
+        container c: KeyedDecodingContainer<CodingKeys>,
+        body: [String: JSONValue]
+    ) throws {
+        self.type = type
+
+        let familyKeys = Block.modelledFamilyKeys[type] ?? []
         let consumed = Block.ownKeys.union(familyKeys)
         let extras = body.filter { !consumed.contains($0.key) }
         self.raw = extras.isEmpty ? nil : extras

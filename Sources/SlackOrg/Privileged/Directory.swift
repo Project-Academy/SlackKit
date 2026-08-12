@@ -51,18 +51,11 @@ extension Member {
     @available(*, deprecated, message: "Org-principal capability — moving server-side; do not add call sites.")
     public static func getInfo(_ id: String, as author: Author? = nil) async throws -> Member {
 
-        let response: InfoResponse = try await Users.info.read {
-            $0.from(author ?? Slack.defaultAuthor)
-              .params(["user": id])
-        }
-        guard let member = response.user else {
-            throw SlackError.unreadable(method: Users.info.method, detail: "ok:true with no `user`")
-        }
-        return member
-    }
-
-    private struct InfoResponse: Decodable, Sendable {
-        let user: Member?
+        // Delegates to the user-principal implementation in the Slack product —
+        // one `users.info` call site, not two. The optional-author resolution
+        // stays here so this entry point behaves exactly as it always has,
+        // including the unauthenticated case, which Slack answers `not_authed`.
+        try await Member.info(id, as: author ?? Slack.defaultAuthor ?? Author(token: nil))
     }
 
     /**

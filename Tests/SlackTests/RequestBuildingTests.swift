@@ -73,6 +73,12 @@ struct RequestBuildingTests {
         #expect(sent["username"] as? String == "TestBOT")
         let raw = String(data: built.urlRequest.httpBody!, encoding: .utf8)!
         #expect(raw.contains("xoxb-secret") == false)
+
+        // Nor in the URL. This test only checked the body, so a future
+        // `.params(["token": …])` would have passed it — and a credential in a
+        // query string survives in proxy logs and browser history, which is a
+        // worse place for it than a request body.
+        #expect(built.urlRequest.url?.absoluteString.contains("xoxb-secret") == false)
     }
 
     @Test("an author with no token adds no header")
