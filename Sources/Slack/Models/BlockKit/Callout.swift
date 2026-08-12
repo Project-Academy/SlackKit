@@ -24,8 +24,7 @@ extension Block {
      */
     public struct Callout: Codable, Equatable, Sendable {
 
-        /// Panel tint. Observed: `green`. Modelled as a tolerant string
-        /// because the full palette isn't documented anywhere.
+        /// Panel tint. A closed set of nine — see ``BackgroundColor``.
         public var background_color: BackgroundColor?
         public var child_blocks: [Block]
 
@@ -34,14 +33,34 @@ extension Block {
             self.child_blocks = blocks
         }
 
-        /// Tolerant like ``Block/Style``: an unlisted value decodes rather
-        /// than throws. Only `green` has been observed; the others are
-        /// unverified guesses and deliberately not offered as statics.
-        public struct BackgroundColor: RawRepresentable, Codable, Equatable, Sendable {
+        /**
+         Panel tint.
+
+         A **closed set of nine**, read off the Block Kit Builder's own
+         validator on 2026-08-09 — Slack documents neither the field nor the
+         palette. Note the American `gray`.
+
+         Still tolerant like ``Block/Style``: an unlisted value decodes rather
+         than throws, because a closed set observed in a validator is not the
+         same as one Slack has promised to keep.
+         */
+        public struct BackgroundColor: RawRepresentable, Codable, Equatable, Sendable, CaseIterable {
             public let rawValue: String
             public init(rawValue: String) { self.rawValue = rawValue }
 
-            public static let green = BackgroundColor(rawValue: "green")
+            public static let indigo = BackgroundColor(rawValue: "indigo")
+            public static let blue   = BackgroundColor(rawValue: "blue")
+            public static let jade   = BackgroundColor(rawValue: "jade")
+            public static let pink   = BackgroundColor(rawValue: "pink")
+            public static let gray   = BackgroundColor(rawValue: "gray")
+            public static let purple = BackgroundColor(rawValue: "purple")
+            public static let orange = BackgroundColor(rawValue: "orange")
+            public static let brown  = BackgroundColor(rawValue: "brown")
+            public static let green  = BackgroundColor(rawValue: "green")
+
+            /// In the Builder's own order.
+            public static let allCases: [BackgroundColor] =
+                [.indigo, .blue, .jade, .pink, .gray, .purple, .orange, .brown, .green]
         }
 
         private enum CodingKeys: String, CodingKey {
