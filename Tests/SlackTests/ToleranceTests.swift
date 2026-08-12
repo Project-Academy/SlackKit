@@ -128,3 +128,53 @@ struct ToleranceTests {
         }
     }
 }
+
+//--------------------------------------
+// MARK: - FIELDS SECTIONS -
+//--------------------------------------
+
+/// The one block family that had no builder: a fields section could only be
+/// written through the memberwise init or by decoding JSON.
+@Suite("Fields sections")
+struct FieldsSectionTests {
+
+    @Test("a fields section builds and round-trips")
+    func buildsAndRoundTrips() throws {
+        let block = Block.section(fields: ["*Rollout*\nAll marking iPads", "*Minimum build*\n1.7.0"])
+
+        #expect(block.type == "section")
+        #expect(block.fields?.count == 2)
+        #expect(block.text == nil)
+        #expect(block.fields?.first?.type == .markdown)
+
+        let data = try JSONEncoder().encode(block)
+        let restored = try JSONDecoder().decode(Block.self, from: data)
+        #expect(restored == block)
+        #expect(restored.isPassthrough == false)
+
+        let wire = try #require(JSONSerialization.jsonObject(with: data) as? [String: Any])
+        let fields = try #require(wire["fields"] as? [[String: Any]])
+        #expect(fields[0]["text"] as? String == "*Rollout*\nAll marking iPads")
+        #expect(fields[0]["type"] as? String == "mrkdwn")
+        #expect(wire["text"] == nil)
+    }
+
+    @Test("a fields section can carry an accessory")
+    func withAccessory() {
+        let block = Block.section(
+            fields: ["*A*\n1", "*B*\n2"],
+            accessory: .button(.init(text: .init(plain: "Open"), url: "https://example.com"))
+        )
+        #expect(block.accessory != nil)
+        #expect(block.fields?.count == 2)
+    }
+
+    /// The text-object overload is there for fields that need their own
+    /// options — `verbatim`, which suppresses Slack's auto-linking.
+    @Test("the text-object overload preserves per-field options")
+    func textObjectOverload() {
+        let verbatim = Block.Text("#not-a-channel", verbatim: true)
+        let block = Block.section(fields: [verbatim])
+        #expect(block.fields?.first?.verbatim == true)
+    }
+}

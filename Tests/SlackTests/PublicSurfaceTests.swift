@@ -60,6 +60,23 @@ struct PublicSurfaceTests {
         _ = send
     }
 
+    /// A composer needs to build a fields section and to know, before posting,
+    /// whether Slack will refuse what it built.
+    @Test("composing and checking are reachable")
+    func composingIsPublic() {
+        let blocks: [Block] = [
+            .header("Heading"),
+            .section(fields: ["*A*\n1", "*B*\n2"]),
+            .section(fields: [Block.Text("*C*\n3")]),
+        ]
+        #expect(blocks.validate().isEmpty)
+
+        let broken: [Block] = [Block(type: "section")]
+        let violation = try? #require(broken.validate().first)
+        #expect(violation?.problem == .sectionHasNoContent)
+        #expect(violation?.index == 0)
+    }
+
     /// The distinction a renderer needs: carried, or understood.
     @Test("passthrough state is visible to a consumer")
     func passthroughIsPublic() throws {

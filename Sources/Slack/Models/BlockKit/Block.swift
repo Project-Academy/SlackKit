@@ -238,6 +238,37 @@ public struct Block: Codable, Equatable, Sendable {
     }
 
     /**
+     A section laid out as a two-column grid of mrkdwn fields, rather than as
+     a paragraph.
+
+     The shape Slack uses for label/value pairs — it wraps into two columns on
+     a wide display and one on a narrow one, which is why a hand-built table of
+     spaces is not a substitute.
+
+     Every other block family has had a builder since the expansion; this one
+     was only reachable through the memberwise initialiser or by decoding
+     JSON, so the tidiest way to write it was also the least discoverable.
+
+     ## Available in Surfaces
+     - Modals
+     - Messages
+     - Home tabs
+
+     - note: Maximum 10 fields, each up to 2000 characters.
+     */
+    public static func section(fields: [Text], accessory: ActionElement? = nil) -> Block {
+        var block = Block(type: BlockType.section.rawValue, fields: fields)
+        block.accessory = accessory
+        return block
+    }
+
+    /// A fields section from mrkdwn strings, for the common case where none of
+    /// them needs its own text-object options.
+    public static func section(fields: [String], accessory: ActionElement? = nil) -> Block {
+        section(fields: fields.map { Text($0) }, accessory: accessory)
+    }
+
+    /**
      Displays one or more mrkdwn elements rendered as a context strip —
      smaller font, secondary colour. Useful for footers / hints that
      shouldn't compete with the main message body.
