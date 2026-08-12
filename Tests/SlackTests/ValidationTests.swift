@@ -136,3 +136,72 @@ struct ValidationTests {
         #expect(alien.validate().isEmpty)
     }
 }
+
+//--------------------------------------
+// MARK: - SURFACES -
+//--------------------------------------
+
+@Suite("Surface rules")
+struct SurfaceValidationTests {
+
+    private func decode(_ json: String) throws -> Block {
+        try JSONDecoder().decode(Block.self, from: Data(json.utf8))
+    }
+
+    /// The differences between surfaces are not guessable, and getting one
+    /// wrong means composing a message Slack will refuse. Catching it here is
+    /// the difference between a warning and an `invalid_blocks` after the fact.
+    @Test("families Slack refuses in a message are caught before it is sent")
+    func messageOnlyRules() throws {
+        let alert = Block.alert("Careful")
+        let input = Block.input(label: "Email", element: .emailTextInput(.init()))
+        let file  = try decode(#"{"type":"file","external_id":"F1","source":"remote"}"#)
+
+        for block in [alert, input, file] {
+            let violations = block.validate(on: .message)
+            #expect(violations.count == 1, "\(block.type) should be refused in a message")
+            if case let .notValidHere(surface, _) = violations.first?.problem {
+                #expect(surface == .message)
+            } else {
+                Issue.record("\(block.type) reported \(String(describing: violations.first?.problem))")
+            }
+        }
+    }
+
+    /// And are accepted where they belong, so the rule is a rule rather than a
+    /// blanket refusal.
+    @Test("the same families are legal on the surfaces that take them")
+    func legalElsewhere() {
+        #expect(Block.alert("Careful").validate(on: .modal).isEmpty)
+        #expect(Block.input(label: "Email", element: .emailTextInput(.init())).validate(on: .modal).isEmpty)
+        #expect(Block.input(label: "Email", element: .emailTextInput(.init())).validate(on: .homeTab).isEmpty)
+
+        // `file` is legal nowhere this app can post.
+        #expect(Block.alert("Careful").validate(on: .homeTab).isEmpty == false)
+    }
+
+    /// Slack renders at most two charts in one message and silently drops the
+    /// rest, which is worse than refusing them.
+    @Test("more than two charts in a message is caught")
+    func chartCeiling() {
+        let chart = Block.dataVisualization(title: "Marks", chart: .pie(segments: [.init("A", value: 1)]))
+        let message = Array(repeating: chart, count: 3)
+
+        let violations = message.validate()
+        #expect(violations.contains { violation in
+            if case let .tooManyOfAKind(type, count, limit) = violation.problem {
+                return type == "data_visualization" && count == 3 && limit == 2
+            }
+            return false
+        })
+
+        #expect(Array(repeating: chart, count: 2).validate().isEmpty)
+    }
+
+    @Test("an ordinary message is unaffected")
+    func ordinaryMessage() {
+        let blocks: [Block] = [.header("Fine"), .section("Also fine"), .divider]
+        #expect(blocks.validate().isEmpty)
+        #expect(blocks.validate(on: .modal).isEmpty)
+    }
+}

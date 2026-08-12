@@ -35,6 +35,9 @@ extension Block {
             case textTooLong(field: String, count: Int, limit: Int)
             case blockIDTooLong(count: Int, limit: Int)
             case tooManyBlocks(count: Int, limit: Int)
+            /// A family Slack refuses on this surface.
+            case notValidHere(surface: Surface, legalOn: String)
+            case tooManyOfAKind(type: String, count: Int, limit: Int)
         }
     }
 
@@ -42,7 +45,31 @@ extension Block {
     // MARK: - LIMITS -
     //--------------------------------------
 
+    /// Where a message is going. Slack accepts different families on each,
+    /// and the differences are not guessable — `alert` is modals-only, `input`
+    /// is modal and home-tab only, `file` posts nowhere.
+    public enum Surface: String, Sendable {
+        case message, modal, homeTab
+
+        var label: String {
+            switch self {
+            case .message: "a message"
+            case .modal:   "a modal"
+            case .homeTab: "a home tab"
+            }
+        }
+    }
+
+    /// Families that are not legal on every surface, and where they are.
+    package static let surfaceLimits: [String: (surfaces: Set<Surface>, legalOn: String)] = [
+        "alert": ([.modal], "modals only"),
+        "input": ([.modal, .homeTab], "modals and home tabs only"),
+        "file":  ([], "nowhere — Slack does not accept it in a posted message"),
+    ]
+
     package enum Limit {
+        /// Slack renders at most two of these in one message.
+        package static let dataVisualisationsPerMessage = 2
         package static let blocksPerMessage = 50
         package static let fieldsPerSection = 10
         package static let elementsPerContext = 10
@@ -68,13 +95,19 @@ extension Block {
      Returns an empty array when there is nothing wrong, so
      `blocks.validate().isEmpty` reads as "postable".
      */
-    public func validate(at index: Int? = nil) -> [Violation] {
+    public func validate(at index: Int? = nil, on surface: Surface = .message) -> [Violation] {
 
         guard !isPassthrough else { return [] }
 
         var found: [Violation] = []
         func fail(_ problem: Violation.Problem) {
             found.append(Violation(index: index, blockType: type, problem: problem))
+        }
+
+        // Checked first: a family that cannot appear here at all makes its
+        // field-level limits beside the point.
+        if let rule = Block.surfaceLimits[type], !rule.surfaces.contains(surface) {
+            fail(.notValidHere(surface: surface, legalOn: rule.legalOn))
         }
 
         if let block_id, block_id.count > Limit.blockID {
@@ -124,9 +157,24 @@ extension Array where Element == Block {
 
      Checks the per-message limit as well as each block's own.
      */
-    public func validate() -> [Block.Violation] {
+    public func validate(on surface: Block.Surface = .message) -> [Block.Violation] {
 
         var found: [Block.Violation] = []
+
+        let charts = filter { $0.type == "data_visualization" }.count
+        if charts > Block.Limit.dataVisualisationsPerMessage {
+            found.append(
+                Block.Violation(
+                    index: nil,
+                    blockType: "data_visualization",
+                    problem: .tooManyOfAKind(
+                        type: "data_visualization",
+                        count: charts,
+                        limit: Block.Limit.dataVisualisationsPerMessage
+                    )
+                )
+            )
+        }
 
         if count > Block.Limit.blocksPerMessage {
             found.append(
@@ -139,7 +187,7 @@ extension Array where Element == Block {
         }
 
         for (index, block) in enumerated() {
-            found.append(contentsOf: block.validate(at: index))
+            found.append(contentsOf: block.validate(at: index, on: surface))
         }
 
         return found
@@ -176,6 +224,10 @@ extension Block.Violation.Problem: CustomStringConvertible {
             "block_id is \(count) characters, limit \(limit)"
         case let .tooManyBlocks(count, limit):
             "\(count) blocks, limit \(limit)"
+        case let .notValidHere(surface, legalOn):
+            "not allowed in \(surface.label) — \(legalOn)"
+        case let .tooManyOfAKind(type, count, limit):
+            "\(count) \(type) blocks, limit \(limit) per message"
         }
     }
 }
