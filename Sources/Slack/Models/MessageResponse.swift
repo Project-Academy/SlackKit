@@ -31,6 +31,18 @@ public struct MessageResponse: Sendable, Equatable {
     /// return one (`chat.delete`), so treat it as a convenience, not proof.
     public let message: ReceivedMessage?
 
+    /**
+     Rebuilds a receipt from the two things Slack needs to address a message
+     again.
+
+     Public because a receipt has to outlive the process that earned it: a
+     client that posts, quits, and reopens must still be able to edit or delete
+     what it sent, and before this there was no way to reconstruct one.
+     */
+    public init(ts: String, in channel: Channel) {
+        self.init(ts: ts, channel: channel, message: nil)
+    }
+
     package init(ts: String, channel: Channel, message: ReceivedMessage? = nil) {
         self.ts = ts
         self.channel = channel
@@ -50,5 +62,46 @@ public struct MessageResponse: Sendable, Equatable {
     package init?(_ msg: ReceivedMessage, channel: Channel) {
         guard let ts = msg.ts else { return nil }
         self.init(ts: ts, channel: channel, message: msg)
+    }
+}
+
+//--------------------------------------
+// MARK: - PERSISTENCE -
+//--------------------------------------
+
+/**
+ Storing a receipt, so that quitting isn't the same as losing the ability to
+ edit.
+
+ This is **not** the wire path — Slack's own reply decodes as `ChatResponse`.
+ This is for a client keeping its own record, and it deliberately persists only
+ the receipt proper: `ts` and `channel`, the pair Slack needs to address the
+ message again.
+
+ ``MessageResponse/message`` is dropped. It is Slack's echo of what was posted,
+ documented above as a convenience rather than proof, and ``ReceivedMessage`` is
+ `Decodable` only by design — a message read back out of Slack should not be
+ re-encodable into something postable. So a decoded receipt has no echo, and is
+ not `==` to the one that came off the wire. What it *is* equal to is the same
+ message: the identity round-trips exactly, which is the whole job.
+ */
+extension MessageResponse: Codable {
+
+    private enum CodingKeys: String, CodingKey {
+        case ts, channel
+    }
+
+    public init(from decoder: any Decoder) throws {
+        let container = try decoder.container(keyedBy: CodingKeys.self)
+        self.init(
+            ts: try container.decode(String.self, forKey: .ts),
+            in: try container.decode(Channel.self, forKey: .channel)
+        )
+    }
+
+    public func encode(to encoder: any Encoder) throws {
+        var container = encoder.container(keyedBy: CodingKeys.self)
+        try container.encode(ts, forKey: .ts)
+        try container.encode(channel, forKey: .channel)
     }
 }

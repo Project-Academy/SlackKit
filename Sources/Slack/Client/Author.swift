@@ -67,6 +67,23 @@ public struct Author: Sendable, Equatable {
         Author(token: token, username: username, iconEmoji: iconEmoji, iconURL: iconURL)
     }
 
+    /**
+     The token's kind, read from its prefix.
+
+     A cheap local answer to "will this post as a person or as an app", for
+     deciding *before* spending a round trip on ``Slack/Slack/whoAmI(as:)``.
+     Slack's answer is the authoritative one; this is the label on the tin.
+     */
+    public var kind: Kind {
+        switch token?.prefix(5) {
+        case "xoxp-": .user
+        case "xoxb-": .bot
+        default:      .unknown
+        }
+    }
+
+    public enum Kind: Sendable, Equatable { case user, bot, unknown }
+
     /// Posts as the person the token belongs to. Persona fields are omitted
     /// because Slack ignores them on a user token.
     public static func user(token: String) -> Author {
@@ -100,5 +117,64 @@ public struct Author: Sendable, Equatable {
         package let username: String?
         package let icon_emoji: String?
         package let icon_url: String?
+    }
+}
+
+//--------------------------------------
+// MARK: - DESCRIPTION -
+//--------------------------------------
+
+/**
+ A credential that doesn't print itself.
+
+ Without this, `"\(author)"`, `print`, `dump`, `os_log` and SwiftUI's preview
+ inspector all emit the token in full — and unified-logging entries persist on
+ disk long after the process is gone. The synthesised description was a leak
+ waiting for someone to log a request they were debugging.
+ */
+extension Author: CustomStringConvertible, CustomDebugStringConvertible {
+
+    public var description: String {
+        guard let token, !token.isEmpty else { return "Author(unauthenticated)" }
+
+        let kindLabel = switch kind {
+        case .user: "user"
+        case .bot: "bot"
+        case .unknown: "token"
+        }
+        let persona = username.map { " as \($0)" } ?? ""
+        return "Author(\(kindLabel) \(Self.redact(token))\(persona))"
+    }
+
+    public var debugDescription: String { description }
+
+    /// Keeps the prefix — which says what kind of credential it is, and is not
+    /// a secret — and discards the rest.
+    fileprivate static func redact(_ token: String) -> String {
+        let prefix = token.prefix(5)
+        return prefix.hasSuffix("-") ? "\(prefix)…" : "…"
+    }
+}
+
+/**
+ `dump` reads a value's *stored properties* and ignores
+ `CustomStringConvertible` entirely, so redacting `description` alone left the
+ token in plain sight of `dump`, the Xcode variables view, and SwiftUI's
+ preview inspector. Reflection has to be overridden separately.
+ */
+extension Author: CustomReflectable {
+
+    public var customMirror: Mirror {
+        Mirror(
+            self,
+            children: [
+                "token": token.map(Author.redact) ?? "nil",
+                "kind": kind,
+                "username": username as Any,
+                "iconEmoji": iconEmoji as Any,
+                "iconURL": iconURL as Any,
+            ],
+            displayStyle: .struct
+        )
     }
 }

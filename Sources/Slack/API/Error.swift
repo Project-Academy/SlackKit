@@ -109,6 +109,12 @@ extension SlackError {
         case cantDeleteMessage
         case msgTooLong
         case noText
+        /// The `blocks` payload was rejected. The composer's error: something
+        /// about the layout is illegal, not something about the credential.
+        case invalidBlocks
+        case invalidBlocksFormat
+        case postingToGeneralChannelDenied
+        case restrictedAction
 
         // MARK: Reactions
         case alreadyReacted
@@ -148,6 +154,10 @@ extension SlackError {
             case "cant_delete_message":                    self = .cantDeleteMessage
             case "msg_too_long":                           self = .msgTooLong
             case "no_text":                                self = .noText
+            case "invalid_blocks":                         self = .invalidBlocks
+            case "invalid_blocks_format":                  self = .invalidBlocksFormat
+            case "posting_to_general_channel_denied":      self = .postingToGeneralChannelDenied
+            case "restricted_action":                      self = .restrictedAction
 
             case "already_reacted":                        self = .alreadyReacted
             case "no_reaction":                            self = .noReaction
@@ -185,6 +195,10 @@ extension SlackError {
             case .cantDeleteMessage:                   return "cant_delete_message"
             case .msgTooLong:                          return "msg_too_long"
             case .noText:                              return "no_text"
+            case .invalidBlocks:                       return "invalid_blocks"
+            case .invalidBlocksFormat:                 return "invalid_blocks_format"
+            case .postingToGeneralChannelDenied:       return "posting_to_general_channel_denied"
+            case .restrictedAction:                    return "restricted_action"
 
             case .alreadyReacted:                      return "already_reacted"
             case .noReaction:                          return "no_reaction"
