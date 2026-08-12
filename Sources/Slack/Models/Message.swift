@@ -123,6 +123,16 @@ public struct ReceivedMessage: Decodable, Equatable, Sendable {
     public let reactions: [Reaction]?
 
     public let thread_ts: String?
+
+    /**
+     How many replies this message's thread holds.
+
+     Present only on a thread's parent, and the only way to know a message
+     *has* a thread — `thread_ts` is set on the parent and every reply alike,
+     so it cannot distinguish "starts a thread" from "is in one".
+     */
+    public let reply_count: Int?
+
     public let metadata: Message.Metadata?
 
     public let app_id: String?
@@ -148,6 +158,7 @@ public struct ReceivedMessage: Decodable, Equatable, Sendable {
         blocks     = try c.decodeIfPresent([Block].self, forKey: .blocks)
         reactions  = try c.decodeIfPresent([Reaction].self, forKey: .reactions)
         thread_ts  = try c.decodeIfPresent(String.self, forKey: .thread_ts)
+        reply_count = try c.decodeIfPresent(Int.self, forKey: .reply_count)
         metadata   = try c.decodeIfPresent(Message.Metadata.self, forKey: .metadata)
         app_id     = try c.decodeIfPresent(String.self, forKey: .app_id)
         bot_id     = try c.decodeIfPresent(String.self, forKey: .bot_id)
@@ -164,7 +175,7 @@ public struct ReceivedMessage: Decodable, Equatable, Sendable {
     }
 
     private enum CodingKeys: String, CodingKey {
-        case text, blocks, reactions, thread_ts, metadata
+        case text, blocks, reactions, thread_ts, reply_count, metadata
         case app_id, bot_id, team, username, type, subtype
         case purpose, inviter, edited, ts, user, permalink
     }
