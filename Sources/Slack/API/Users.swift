@@ -18,6 +18,7 @@ package enum Users: String, SlackEndpoint {
     case list
     case info
     case profileGet = "profile.get"
+    case conversations
 
     package var method: String { "users.\(rawValue)" }
 }
