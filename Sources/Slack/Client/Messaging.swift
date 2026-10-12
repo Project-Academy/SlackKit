@@ -74,6 +74,10 @@ extension MessageResponse {
        them, so updating a Block Kit message with a text-only ``Message`` strips
        its layout. Carry the blocks forward — `received.recomposed()` gives you
        the original content to edit.
+
+     - note: The message keeps the name and icon it was posted with. `chat.update` takes no
+       persona and leaves the original one in place, so a post sent under a custom
+       `username`/`icon_emoji` still shows it after an update.
      */
     @discardableResult
     public func update(

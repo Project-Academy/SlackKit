@@ -26,6 +26,10 @@ extension Message {
        Slack removes the existing `blocks` when an update carries `text` without
        them, so updating a Block Kit message with a text-only ``Message`` strips
        its layout.
+
+     - note: The message keeps the name and icon it was posted with. `chat.update` takes no
+       persona and leaves the original one in place, so a post sent under a custom
+       `username`/`icon_emoji` still shows it after an update.
      */
     @discardableResult
     public static func update(
